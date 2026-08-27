@@ -10,7 +10,7 @@
   "checklist": {
     "6-1_file_set_exact": "PASS",
     "6-2_no_install_no_network": "PASS",
-    "6-3_no_console_error": "HUMAN_CHECK",
+    "6-3_no_console_error": "PASS",
     "6-4_tests_fail0_pass149": "PASS(node)",
     "6-5_initial_state_six_keys_next_null": "PASS(node)",
     "6-6_start_game_supply_two_calls": "PASS(node)",
@@ -18,7 +18,7 @@
     "6-8_browser_start_shows_next_o": "PASS(node)",
     "6-9_next_grid_16_cells_empty_on_ready": "PASS(node)",
     "6-10_next_grid_indices_all_types": "PASS(node)",
-    "6-11_next_color_equals_board_color": "PASS(node-substitute)",
+    "6-11_next_color_equals_board_color": "PASS",
     "6-12_lock_promotes_next_one_call": "PASS(node)",
     "6-13_promoted_uses_spawn_rule": "PASS(node)",
     "6-14_sequence_tilo_calls": "PASS(node)",
@@ -33,5 +33,5 @@
   },
   "last_report": ".loop/reports/SPEC_05-iter-0.md",
   "human_input_needed": null,
-  "updated_at": "2026-08-27T17:19:16+09:00"
+  "updated_at": "2026-08-27T17:20:34+09:00"
 }

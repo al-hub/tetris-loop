@@ -19,7 +19,7 @@
 |---|------|------|
 | 6-1 | 산출물 여섯 개 일치 | PASS |
 | 6-2 | 설치·외부 URL·네트워크 API 0건 | PASS |
-| 6-3 | 페이지 콘솔 error 0건 (사람 몫, 종합 제외) | 사람 확인 (종합 제외) |
+| 6-3 | 페이지 콘솔 error 0건 (사람 몫, 종합 제외) | PASS (사람) |
 | 6-4 | 테스트 FAIL 0 · PASS ≥149 · `initial-state-keys-five` 부재 | PASS (Node) |
 | 6-5 | 초기 상태 6키, `next` null | PASS (Node) |
 | 6-6 | `startGame` 공급자 2회 → (T,I) | PASS (Node) |
@@ -27,7 +27,7 @@
 | 6-8 | 브라우저 시작 후 NEXT 격자에 O | PASS (Node) |
 | 6-9 | `next-cell` 16개, READY 에서 비어 있음 | PASS (Node) |
 | 6-10 | 7종 중앙 배치 인덱스 일치 | PASS (Node) |
-| 6-11 | NEXT 색 = 보드 셀 색 | PASS (Node 대체) · 색은 사람 |
+| 6-11 | NEXT 색 = 보드 셀 색 | PASS (사람) |
 | 6-12 | 승격 시 공급 1회, next 보충 | PASS (Node) |
 | 6-13 | 승격 블록 좌표 = `createPiece` 규칙 | PASS (Node) |
 | 6-14 | [T,I,L,O,Z] 3회 굳힘 순서·calls 2·3·4·5 | PASS (Node) |
@@ -46,11 +46,11 @@
 
 | 반복 | 결과 | 실패 시그니처 | 리포트 |
 |------|------|---------------|--------|
-| 0 | PASSED — 21/21 (6-3 사람 확인 별도) | 없음 | `.loop/reports/SPEC_05-iter-0.md` |
+| 0 | PASSED — 22/22 | 없음 | `.loop/reports/SPEC_05-iter-0.md` |
 
 ## 사람 확인 필요
 
-**6-3**(콘솔 error 0) · **6-11**(NEXT 색 = 보드 색, 리포트 스니펫) · §8. 절차는 리포트.
+없음.
 
 ## 다음 단계
 

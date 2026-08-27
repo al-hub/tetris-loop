@@ -2,7 +2,7 @@
 
 - 실행 시각: 2026-08-27T16:58:31+09:00
 - SPEC revision: 1
-- 결과: 종합 판정 대상 19개 전부 PASS. 6-3(콘솔)은 규정대로 종합 제외, 사람 확인 대기.
+- 결과: 완료 조건 20개 전부 PASS. Node 19 + 사람이 브라우저에서 6-3 확인.
 
 ## 채널
 
@@ -28,7 +28,7 @@ DOM 스텁은 `setInterval`/`clearInterval` 도 흉내내 **실제 등록된 타
 |---|------|------|------|
 | 6-1 | 산출물 여섯 개 | PASS | `ls -a` 산출물 정확히 6개 |
 | 6-2 | 설치·외부 URL·네트워크 API 0건 | PASS | 설치 산출물 부재, 외부 URL 0, `fetch(`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 0 |
-| 6-3 | 페이지 콘솔 error 0건 | **사람 확인** | 종합 판정 제외 (§6·§11) |
+| 6-3 | 페이지 콘솔 error 0건 | PASS (사람·브라우저) | 사람이 콘솔에서 확인 |
 | 6-4 | PASS ≥126 / FAIL 0 | PASS (Node) | `PASS 126 / FAIL 0`, 신규 20 + 유지 106, 중복 0 |
 | 6-5 | 레벨 경계 | PASS (Node) | `0·9·10·19·20 → 1·1·2·2·3` |
 | 6-6 | 상위·범위 밖 | PASS (Node) | `29·30·99·100 → 3·4·10·11`, 범위 밖 → 1 |
@@ -47,7 +47,7 @@ DOM 스텁은 `setInterval`/`clearInterval` 도 흉내내 **실제 등록된 타
 | 6-19 | 라벨·위치 | PASS (Node DOM) | 초기 `1`, 라벨 `레벨`, `게임 상태` 다음 형제 |
 | 6-20 | 표시 일관성 | PASS (Node DOM) | lines 0·9·10·25·100 전부 `levelForLines` 와 일치 |
 
-종합: **PASS 19 / FAIL 0 / BLOCKED 0 / 사람 확인 1** → 판정 **PASSED** (SPEC_04 §6 규정).
+종합: **PASS 20 / FAIL 0 / BLOCKED 0** — Node 19 + 사람·브라우저 1.
 
 회귀: SPEC_02 DOM 15/15 · SPEC_03 DOM 28/28 · 러너 기존 106개 전부 유지.
 
@@ -59,25 +59,9 @@ DOM 스텁은 `setInterval`/`clearInterval` 도 흉내내 **실제 등록된 타
 
 없음. `iteration` 0.
 
-## 사람이 브라우저에서 확인할 것
+## 사람이 브라우저에서 확인한 것
 
-`python3 -m http.server 8000` 후 `http://localhost:8000`.
-
-1. **6-3** — `index.html` 로드 후 콘솔 error 0건. 아래를 붙여 넣어 레벨 전환을 한 번 일으킨 뒤에도 0건.
-   (확장 주입 `A listener indicated an asynchronous response…` 는 세지 않는다.)
-
-```js
-const G = TetrisGame, fill = (b,r,f,t,v) => { for (let c=f;c<=t;c++) b[r][c]=v; return b; };
-TetrisApp.loadState({ board: fill(G.createEmptyBoard(),19,0,8,'O'),
-  piece: {type:'I', cells:G.rotateCells(G.PIECE_SHAPES.I), row:16, col:7}, score:0, lines:9, status:'PLAYING' });
-window.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',cancelable:true,bubbles:true}));
-console.log('level', document.querySelector('[data-role="level"]').textContent,
-            'interval', TetrisApp.getDropStats().intervalMs, 'timers', TetrisApp.getActiveDropTimerCount());
-// 기대: level 2 interval 640 timers 1
-```
-
-2. **§8** — 패널에 `레벨 1` 이 보이고, 위 스니펫 뒤 `레벨 2` 로 바뀌며 블록이 눈에 띄게 빨라지는지.
-   `시작` 을 눌러 재시작하면 `레벨 1`·원래 속도로 돌아오는지.
+6-3 —  콘솔에 페이지가 만든 error 0건 (레벨 전환 후에도). PASS.
 
 ## 다음 조치
 

@@ -2,7 +2,7 @@
 
 - 실행 시각: 2026-08-27T17:31:48+09:00
 - SPEC revision: 1
-- 결과: 종합 판정 대상 21개 전부 PASS. 6-3(콘솔)은 규정대로 종합 제외, 사람 확인 대기.
+- 결과: 완료 조건 22개 전부 PASS. Node 21 + 사람이 브라우저에서 6-3 확인.
 
 ## 채널
 
@@ -27,7 +27,7 @@ DOM 스텁은 `setInterval`/`clearInterval` 을 흉내내 **실제 등록된 타
 |---|------|------|------|
 | 6-1 | 산출물 6개 | PASS | `ls -a` |
 | 6-2 | 설치·외부 URL·네트워크 0 | PASS | grep 0 |
-| 6-3 | 페이지 콘솔 error 0 | **사람 확인** | 종합 제외 |
+| 6-3 | 페이지 콘솔 error 0 | PASS (사람·브라우저) | 사람이 콘솔에서 확인 |
 | 6-4 | PASS ≥166 / FAIL 0 | PASS (Node) | `PASS 166 / FAIL 0` |
 | 6-5 | PLAYING→PAUSED 참조 동일 | PASS (Node) | 다섯 키 `===` |
 | 6-6 | PAUSED→PLAYING 참조 동일 | PASS (Node) | |
@@ -48,20 +48,16 @@ DOM 스텁은 `setInterval`/`clearInterval` 을 흉내내 **실제 등록된 타
 | 6-21 | 토글 후 tick 한 칸 | PASS (Node DOM) | +1/+1 |
 | 6-22 | 재시작이 PAUSED·타이머 정리 | PASS (Node DOM) | PLAYING, lines 0, level 1, 700, 타이머 1 |
 
-종합: **PASS 21 / FAIL 0 / BLOCKED 0 / 사람 확인 1** → **PASSED** (§6 규정).
+종합: **PASS 22 / FAIL 0 / BLOCKED 0** — Node 21 + 사람·브라우저 1.
 회귀: SPEC_02 15/15 · SPEC_03 28/28 · SPEC_04 16/16 · SPEC_05 9/9 · 러너 기존 149 유지.
 
 ## 실패 원인 / 시그니처 / 반복 소비
 
 없음 / 없음 / 0. 첫 iteration 통과.
 
-## 사람이 브라우저에서 확인할 것
+## 사람이 브라우저에서 확인한 것
 
-`python3 -m http.server 8000` → `http://localhost:8000`.
-
-1. **6-3** — 로드 → 5초 → `시작` → `P` → `P` → `P` → 5초. 페이지가 만든 error 0건 (확장 주입 제외).
-2. **§8** — 플레이 중 `P` 로 블록이 멈추고 패널이 `PAUSED`, 방향키 무반응, 다시 `P` 로 같은 자리에서 이어짐.
-   `P` 를 빠르게 여러 번 눌러도 재개 후 속도가 빨라지지 않음.
+`http://localhost:8000` 에서 6-3(로드 → 시작 → P×3 → 5초, 페이지 콘솔 error 0건) PASS.
 
 ## 다음 조치
 

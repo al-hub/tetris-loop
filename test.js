@@ -580,11 +580,6 @@
     assert(next.piece.type === 'S', 'T 다음이 S 가 아니다: ' + next.piece.type);
   });
 
-  test('lock-and-advance-keeps-score', 'score 는 바뀌지 않는다', function () {
-    var state = playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { score: 42 });
-    assert(G.lockAndAdvance(state).score === 42, 'score=' + G.lockAndAdvance(state).score);
-  });
-
   test('lock-and-advance-game-over', '생성 위치가 막히면 GAME_OVER 이고 piece 는 null 이다', function () {
     var board = emptyBoard();
     [0, 1, 2, 3].forEach(function (r) { fillRow(board, r, 0, 8, 'O'); });
@@ -644,6 +639,212 @@
   test('apply-rotate-ignored-when-game-over', 'GAME_OVER 에서 회전은 그대로 반환한다', function () {
     var state = playing(emptyBoard(), G.createPiece('T'), { status: 'GAME_OVER' });
     assert(G.applyRotate(state) === state, '같은 참조가 아니다');
+  });
+
+  // ======================= SPEC_03 §7.3 — 신규 =======================
+
+  function rec(id, score, playedAt, name, lines) {
+    return {
+      id: id,
+      name: name === undefined ? id : name,
+      score: score,
+      clearedLines: lines === undefined ? 1 : lines,
+      playedAt: playedAt
+    };
+  }
+
+  function ids(records) {
+    return records.map(function (r) { return r.id; }).join(',');
+  }
+
+  test('api-surface-spec03', 'SPEC_03 공개 API 가 모두 있다', function () {
+    assert(Array.isArray(G.SCORE_TABLE), 'SCORE_TABLE 이 배열이 아니다');
+    assert(typeof G.LEADERBOARD_KEY === 'string', 'LEADERBOARD_KEY 가 문자열이 아니다');
+    assert(typeof G.LEADERBOARD_LIMIT === 'number', 'LEADERBOARD_LIMIT 가 숫자가 아니다');
+    var fns = ['scoreForLines', 'validateName', 'sanitizeRecords', 'sortRecords', 'addRecord'];
+    for (var i = 0; i < fns.length; i += 1) {
+      assert(typeof G[fns[i]] === 'function', fns[i] + ' 가 함수가 아니다');
+    }
+  });
+
+  test('score-table-values', 'SCORE_TABLE 이 [0,100,300,500,800] 이고 동결되어 있다', function () {
+    assert(J(G.SCORE_TABLE) === J([0, 100, 300, 500, 800]), '실제=' + J(G.SCORE_TABLE));
+    assert(Object.isFrozen(G.SCORE_TABLE), '동결되지 않았다');
+  });
+
+  test('score-for-lines-table', '0·1·2·3·4 가 0·100·300·500·800 이다', function () {
+    var got = [0, 1, 2, 3, 4].map(function (n) { return G.scoreForLines(n); });
+    assert(J(got) === J([0, 100, 300, 500, 800]), '실제=' + J(got));
+  });
+
+  test('score-for-lines-out-of-range', '범위 밖 입력은 전부 0 이다', function () {
+    var inputs = [-1, 5, 1.5, '2', null, undefined, NaN, Infinity];
+    for (var i = 0; i < inputs.length; i += 1) {
+      var got = G.scoreForLines(inputs[i]);
+      assert(got === 0, String(inputs[i]) + ' → ' + got);
+    }
+  });
+
+  test('leaderboard-key-exact', '저장 키가 tetris-loop.leaderboard.v1 이다', function () {
+    assert(G.LEADERBOARD_KEY === 'tetris-loop.leaderboard.v1', '실제=' + G.LEADERBOARD_KEY);
+  });
+
+  test('leaderboard-limit-ten', 'LEADERBOARD_LIMIT 이 10 이다', function () {
+    assert(G.LEADERBOARD_LIMIT === 10, '실제=' + G.LEADERBOARD_LIMIT);
+  });
+
+  test('lock-and-advance-adds-score', '한 줄 100 · 두 줄 300 이 더해진다', function () {
+    var one = G.lockAndAdvance(playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { score: 0 }));
+    assert(one.score === 100, '한 줄 score=' + one.score);
+    var board = emptyBoard();
+    fillRow(board, 18, 0, 8, 'O');
+    fillRow(board, 19, 0, 8, 'O');
+    var two = G.lockAndAdvance(playing(board, verticalI(), { score: 0 }));
+    assert(two.score === 300, '두 줄 score=' + two.score);
+    var accumulated = G.lockAndAdvance(playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { score: 500 }));
+    assert(accumulated.score === 600, '누적 score=' + accumulated.score);
+  });
+
+  test('lock-and-advance-score-on-game-over', '게임오버 고정에서도 점수가 더해진다', function () {
+    var board = emptyBoard();
+    fillRow(board, 19, 0, 8, 'O');
+    [0, 1, 2, 3].forEach(function (r) { fillRow(board, r, 0, 8, 'O'); });
+    var next = G.lockAndAdvance(playing(board, verticalI(), { score: 0 }));
+    assert(next.status === 'GAME_OVER', 'status=' + next.status);
+    assert(next.score === 100, 'score=' + next.score);
+    assert(next.lines === 1, 'lines=' + next.lines);
+  });
+
+  test('validate-name-trims', '앞뒤 공백을 제거한다', function () {
+    var r = G.validateName('  민수  ');
+    assert(r.ok === true, 'ok=' + r.ok + ' reason=' + r.reason);
+    assert(r.name === '민수', 'name=' + J(r.name));
+  });
+
+  test('validate-name-too-short', '1자와 빈 문자열은 TOO_SHORT 다', function () {
+    assert(G.validateName('민').reason === 'TOO_SHORT', "'민' → " + G.validateName('민').reason);
+    assert(G.validateName('').reason === 'TOO_SHORT', "'' → " + G.validateName('').reason);
+    assert(G.validateName('a').reason === 'TOO_SHORT', "'a' → " + G.validateName('a').reason);
+    assert(G.validateName('   ').reason === 'TOO_SHORT', '공백만 → ' + G.validateName('   ').reason);
+  });
+
+  test('validate-name-min-two', '2자는 통과한다', function () {
+    assert(G.validateName('민수').ok === true, 'reason=' + G.validateName('민수').reason);
+  });
+
+  test('validate-name-max-ten', '10자는 통과한다', function () {
+    var ten = '가나다라마바사아자차';
+    assert(Array.from(ten).length === 10, '테스트 데이터가 10자가 아니다');
+    assert(G.validateName(ten).ok === true, 'reason=' + G.validateName(ten).reason);
+  });
+
+  test('validate-name-too-long', '11자는 TOO_LONG 이다', function () {
+    var eleven = '가나다라마바사아자차카';
+    assert(Array.from(eleven).length === 11, '테스트 데이터가 11자가 아니다');
+    assert(G.validateName(eleven).reason === 'TOO_LONG', '실제=' + G.validateName(eleven).reason);
+  });
+
+  test('validate-name-hangul', '한글 이름은 통과한다', function () {
+    assert(G.validateName('테트리스').ok === true, 'reason=' + G.validateName('테트리스').reason);
+  });
+
+  test('validate-name-latin-digit', '영문·숫자 조합은 통과한다', function () {
+    assert(G.validateName('Player1').ok === true, "Player1 → " + G.validateName('Player1').reason);
+    assert(G.validateName('테트리스7').ok === true, "테트리스7 → " + G.validateName('테트리스7').reason);
+  });
+
+  test('validate-name-inner-space', '내부 공백은 INVALID_CHAR 다', function () {
+    assert(G.validateName('김 민수').reason === 'INVALID_CHAR', '실제=' + G.validateName('김 민수').reason);
+  });
+
+  test('validate-name-symbol', '특수문자는 INVALID_CHAR 다', function () {
+    assert(G.validateName('Player!').reason === 'INVALID_CHAR', '실제=' + G.validateName('Player!').reason);
+  });
+
+  test('validate-name-emoji', '이모지는 INVALID_CHAR 다 (길이로 걸리지 않는다)', function () {
+    var r = G.validateName('민수🎮');
+    assert(r.reason === 'INVALID_CHAR', '실제=' + r.reason);
+  });
+
+  test('validate-name-jamo', '한글 자모는 INVALID_CHAR 다', function () {
+    assert(G.validateName('ㄱㄴ').reason === 'INVALID_CHAR', '실제=' + G.validateName('ㄱㄴ').reason);
+  });
+
+  test('validate-name-shape', '반환 객체가 ok·name·reason 셋이다', function () {
+    var keys = Object.keys(G.validateName('민수')).sort();
+    assert(keys.join(',') === 'name,ok,reason', '키=' + keys.join(','));
+    assert(G.validateName('민수').reason === null, 'ok 인데 reason 이 null 이 아니다');
+    assert(typeof G.validateName(null).name === 'string', '문자열이 아닌 입력에 name 이 문자열이 아니다');
+  });
+
+  test('sanitize-non-array', '배열이 아니면 빈 배열이다', function () {
+    var inputs = [null, 'x', 3, {}, undefined, true];
+    for (var i = 0; i < inputs.length; i += 1) {
+      var got = G.sanitizeRecords(inputs[i]);
+      assert(Array.isArray(got) && got.length === 0, J(inputs[i]) + ' → ' + J(got));
+    }
+  });
+
+  test('sanitize-drops-invalid-items', '필수 키·타입이 어긋난 항목만 제거한다', function () {
+    var input = [
+      rec('a', 100, 1),
+      { id: 'b', name: 'B', score: 100 },
+      { id: 'c', name: 'C', score: '100', clearedLines: 1, playedAt: 2 },
+      null,
+      'x',
+      rec('d', 200, 3)
+    ];
+    var got = G.sanitizeRecords(input);
+    assert(ids(got) === 'a,d', '남은 id=' + ids(got));
+  });
+
+  test('sanitize-keeps-valid', '유효 기록의 값을 바꾸지 않는다', function () {
+    var one = rec('a', 100, 5, '민수', 3);
+    var got = G.sanitizeRecords([one]);
+    assert(got.length === 1, '길이=' + got.length);
+    assert(J(got[0]) === J(one), '값이 변했다: ' + J(got[0]));
+  });
+
+  test('sort-score-desc', '점수 내림차순이다', function () {
+    var got = G.sortRecords([rec('a', 100, 1), rec('b', 300, 2), rec('c', 200, 3)]);
+    assert(ids(got) === 'b,c,a', '순서=' + ids(got));
+  });
+
+  test('sort-tie-played-at-asc', '동점이면 playedAt 오름차순이다', function () {
+    var got = G.sortRecords([rec('late', 300, 30), rec('low', 100, 1), rec('early', 300, 20)]);
+    assert(ids(got) === 'early,late,low', '순서=' + ids(got));
+  });
+
+  test('sort-stable-on-full-tie', '점수·playedAt 이 같으면 기존 순서를 지킨다', function () {
+    var got = G.sortRecords([rec('first', 300, 7), rec('second', 300, 7), rec('third', 300, 7)]);
+    assert(ids(got) === 'first,second,third', '순서=' + ids(got));
+  });
+
+  test('sort-pure', '정렬은 원본을 변형하지 않는다', function () {
+    var input = [rec('a', 100, 1), rec('b', 300, 2)];
+    var before = ids(input);
+    var got = G.sortRecords(input);
+    assert(ids(input) === before, '원본이 변했다: ' + ids(input));
+    assert(got !== input, '같은 참조를 돌려줬다');
+  });
+
+  test('add-record-sorts-then-limits', '추가 → 정렬 → 상위 10개 순서다', function () {
+    var base = [];
+    for (var i = 0; i < 10; i += 1) {
+      base.push(rec('r' + i, (i + 1) * 100, i + 1));
+    }
+    var before = ids(base);
+
+    var top = G.addRecord(base, rec('best', 5000, 99));
+    assert(top.length === 10, '길이=' + top.length);
+    assert(top[0].id === 'best', '1위=' + top[0].id);
+    assert(ids(top).indexOf('r0') < 0, '최하위 r0 가 남아 있다: ' + ids(top));
+
+    var low = G.addRecord(base, rec('weak', 5, 99));
+    assert(low.length === 10, '길이=' + low.length);
+    assert(ids(low).indexOf('weak') < 0, '10위 밖 기록이 남았다: ' + ids(low));
+
+    assert(ids(base) === before, '원본이 변했다');
   });
 
   // ======================= 결과 표시 =======================

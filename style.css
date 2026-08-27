@@ -124,6 +124,71 @@ main {
   overflow-wrap: break-word;
 }
 
+/* 게임오버 결과 영역과 리더보드 (SPEC_03 §3) */
+.gameover,
+.leaderboard {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.gameover p,
+.leaderboard h2 {
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+[data-role="name-input"] {
+  font: inherit;
+  width: 100%;
+  padding: 6px 8px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+[data-role="save"],
+[data-role="clear-leaderboard"] {
+  font: inherit;
+  margin-top: 6px;
+  padding: 6px 14px;
+  color: var(--fg);
+  background: var(--panel-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+[data-role="save"][disabled] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+[data-role="name-error"] {
+  min-height: 1.2em;
+  font-size: 13px;
+  color: #f97316;
+}
+
+[data-role="record-list"] {
+  margin: 6px 0;
+  padding-left: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+[data-role="record"] {
+  display: flex;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+[data-role="record-name"] {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
 /* 가장 좁은 폭에서도 가로 스크롤이 생기지 않도록 셀을 줄인다. */
 @media (max-width: 359px) {
   :root {

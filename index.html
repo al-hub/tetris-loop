@@ -21,6 +21,20 @@
     <div class="stat"><span class="label">제거한 줄</span><span data-role="lines">0</span></div>
     <div class="stat"><span class="label">게임 상태</span><span data-role="status">READY</span></div>
     <p data-role="controls">← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지</p>
+
+    <section class="gameover" data-role="gameover" hidden>
+      <p>최종 점수 <span data-role="final-score">0</span></p>
+      <p>제거한 줄 <span data-role="final-lines">0</span></p>
+      <input data-role="name-input" type="text" maxlength="20" placeholder="이름">
+      <button data-role="save">기록 저장</button>
+      <p data-role="name-error"></p>
+    </section>
+
+    <section class="leaderboard" data-role="leaderboard">
+      <h2>리더보드</h2>
+      <ol data-role="record-list"></ol>
+      <button data-role="clear-leaderboard">리더보드 초기화</button>
+    </section>
   </aside>
 </main>
 </body>

@@ -19,6 +19,15 @@
 
   var DROP_INTERVAL_MS = 700;
 
+  // 인덱스가 한 번에 지운 줄 수다 (SPEC_03 §4.2).
+  var SCORE_TABLE = Object.freeze([0, 100, 300, 500, 800]);
+
+  var LEADERBOARD_KEY = 'tetris-loop.leaderboard.v1';
+  var LEADERBOARD_LIMIT = 10;
+
+  // 허용 문자는 완성형 한글 음절·영문·숫자뿐이다. 자모와 공백·기호·이모지는 막는다.
+  var NAME_PATTERN = /^[가-힣A-Za-z0-9]+$/;
+
   function freezeMatrix(matrix) {
     for (var i = 0; i < matrix.length; i += 1) {
       Object.freeze(matrix[i]);
@@ -91,6 +100,72 @@
       out.push(row);
     }
     return out;
+  }
+
+  // 범위 밖 입력은 던지지 않고 0 을 준다 — 여기서 던지면 lockAndAdvance 가 게임을 죽인다.
+  function scoreForLines(count) {
+    if (typeof count !== 'number' || !Number.isInteger(count)) {
+      return 0;
+    }
+    if (count < 0 || count >= SCORE_TABLE.length) {
+      return 0;
+    }
+    return SCORE_TABLE[count];
+  }
+
+  // 길이를 먼저 보고 그다음 문자를 본다. 순서를 바꾸면 같은 입력에 다른 reason 이 나온다.
+  function validateName(raw) {
+    var name = typeof raw === 'string' ? raw.trim() : '';
+    var length = Array.from(name).length;
+    if (length < 2) {
+      return { ok: false, name: name, reason: 'TOO_SHORT' };
+    }
+    if (length > 10) {
+      return { ok: false, name: name, reason: 'TOO_LONG' };
+    }
+    if (!NAME_PATTERN.test(name)) {
+      return { ok: false, name: name, reason: 'INVALID_CHAR' };
+    }
+    return { ok: true, name: name, reason: null };
+  }
+
+  function isValidRecord(record) {
+    return record !== null &&
+      typeof record === 'object' &&
+      typeof record.id === 'string' &&
+      typeof record.name === 'string' &&
+      Number.isFinite(record.score) &&
+      Number.isFinite(record.clearedLines) &&
+      Number.isFinite(record.playedAt);
+  }
+
+  // 어떤 값이 와도 던지지 않는다. 배열이 아니면 빈 배열, 배열이면 유효 항목만 순서대로.
+  function sanitizeRecords(value) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    var out = [];
+    for (var i = 0; i < value.length; i += 1) {
+      if (isValidRecord(value[i])) {
+        out.push(value[i]);
+      }
+    }
+    return out;
+  }
+
+  // score 내림차순 -> playedAt 오름차순 -> 기존 순서 유지. 그 밖의 필드는 보지 않는다.
+  function sortRecords(records) {
+    return records.slice().sort(function (a, b) {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      return a.playedAt - b.playedAt;
+    });
+  }
+
+  // 추가 -> 전체 정렬 -> 상위 10개. 순서를 바꾸지 않는다.
+  function addRecord(records, record) {
+    return sortRecords(records.concat([record])).slice(0, LEADERBOARD_LIMIT);
   }
 
   function forEachFilled(piece, visit) {
@@ -214,12 +289,13 @@
     var full = findFullRows(locked);
     var cleared = clearRows(locked, full);
     var lines = state.lines + full.length;
+    var score = state.score + scoreForLines(full.length);
     var next = createPiece(nextPieceType(state.piece.type));
     var placeable = canPlace(cleared, next);
     return {
       board: cleared,
       piece: placeable ? next : null,
-      score: state.score,
+      score: score,
       lines: lines,
       status: placeable ? GAME_STATUS.PLAYING : GAME_STATUS.GAME_OVER
     };
@@ -271,6 +347,14 @@
     PIECE_TYPES: PIECE_TYPES,
     PIECE_SHAPES: PIECE_SHAPES,
     DROP_INTERVAL_MS: DROP_INTERVAL_MS,
+    SCORE_TABLE: SCORE_TABLE,
+    LEADERBOARD_KEY: LEADERBOARD_KEY,
+    LEADERBOARD_LIMIT: LEADERBOARD_LIMIT,
+    scoreForLines: scoreForLines,
+    validateName: validateName,
+    sanitizeRecords: sanitizeRecords,
+    sortRecords: sortRecords,
+    addRecord: addRecord,
     createEmptyBoard: createEmptyBoard,
     createInitialState: createInitialState,
     nextPieceType: nextPieceType,

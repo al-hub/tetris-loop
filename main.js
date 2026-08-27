@@ -13,6 +13,12 @@
   var lastDropAt = null;
   var dropIntervalMs = G.DROP_INTERVAL_MS;
 
+  // 영속 리더보드 상태. 게임 상태와 별개다 (SPEC_03 §4.6).
+  var leaderboard = [];
+  // 이번 게임의 게임오버 결과 스냅샷. 이름을 입력하는 동안 값이 흔들리지 않게 찍어 둔다.
+  var gameOverResult = null;
+  var savedForCurrentGame = false;
+
   function setText(role, value) {
     var el = document.querySelector('[data-role="' + role + '"]');
     if (el) {
@@ -60,6 +66,48 @@
     }
   }
 
+  function renderGameOver(state) {
+    var section = document.querySelector('[data-role="gameover"]');
+    if (!section) {
+      return;
+    }
+    var over = state.status === G.GAME_STATUS.GAME_OVER;
+    section.hidden = !over;
+    if (over && gameOverResult) {
+      setText('final-score', gameOverResult.score);
+      setText('final-lines', gameOverResult.clearedLines);
+    }
+    var saveButton = document.querySelector('[data-role="save"]');
+    if (saveButton) {
+      saveButton.disabled = !over || savedForCurrentGame;
+    }
+  }
+
+  function renderLeaderboard() {
+    var list = document.querySelector('[data-role="record-list"]');
+    if (!list) {
+      return;
+    }
+    list.textContent = '';
+    for (var i = 0; i < leaderboard.length; i += 1) {
+      var record = leaderboard[i];
+      var item = document.createElement('li');
+      item.setAttribute('data-role', 'record');
+      item.appendChild(cellSpan('rank', i + 1));
+      item.appendChild(cellSpan('record-name', record.name));
+      item.appendChild(cellSpan('record-score', record.score));
+      item.appendChild(cellSpan('record-lines', record.clearedLines));
+      list.appendChild(item);
+    }
+  }
+
+  function cellSpan(role, value) {
+    var span = document.createElement('span');
+    span.setAttribute('data-role', role);
+    span.textContent = String(value);
+    return span;
+  }
+
   // 화면만 그린다. 앱이 들고 있는 상태를 바꾸지 않는다.
   function render(state) {
     if (!state) {
@@ -69,6 +117,8 @@
     setText('score', state.score);
     setText('lines', state.lines);
     setText('status', state.status);
+    renderGameOver(state);
+    renderLeaderboard();
   }
 
   function stopDropTimer() {
@@ -100,11 +150,24 @@
       return;
     }
     appState = state;
+    resetSaveState();
+    captureGameOver(appState);
     render(appState);
     if (appState.status === G.GAME_STATUS.PLAYING) {
       startDropTimer();
     } else {
       stopDropTimer();
+    }
+  }
+
+  // 게임오버로 넘어가는 순간의 점수·줄 수를 찍어 둔다. 그 뒤에는 바뀌지 않는다.
+  function captureGameOver(state) {
+    if (state.status === G.GAME_STATUS.GAME_OVER) {
+      if (!gameOverResult) {
+        gameOverResult = { score: state.score, clearedLines: state.lines };
+      }
+    } else {
+      gameOverResult = null;
     }
   }
 
@@ -114,6 +177,7 @@
       return;
     }
     appState = nextState;
+    captureGameOver(appState);
     render(appState);
     if (appState.status !== G.GAME_STATUS.PLAYING) {
       stopDropTimer();
@@ -135,8 +199,20 @@
       return; // 진행 중에는 무시한다 (SPEC_01 §3.2).
     }
     appState = G.startGame(appState);
+    resetSaveState();
     render(appState);
     startDropTimer();
+  }
+
+  // 새 게임은 다시 한 번 저장할 수 있다. 리더보드 기록은 건드리지 않는다.
+  function resetSaveState() {
+    gameOverResult = null;
+    savedForCurrentGame = false;
+    setText('name-error', '');
+    var input = document.querySelector('[data-role="name-input"]');
+    if (input) {
+      input.value = '';
+    }
   }
 
   var MOVE_KEYS = {
@@ -162,20 +238,124 @@
     commit(G.applyMove(appState, delta[0], delta[1]));
   }
 
+  // ---- 리더보드 (SPEC_03 §4.6) ----
+
+  var ERROR_TEXT = {
+    TOO_SHORT: '이름은 2자 이상이어야 합니다',
+    TOO_LONG: '이름은 10자 이하여야 합니다',
+    INVALID_CHAR: '한글·영문·숫자만 쓸 수 있습니다'
+  };
+
+  // 읽기 실패는 메모리만 빈 목록으로 만든다. localStorage 는 건드리지 않는다.
+  function loadLeaderboard() {
+    var raw = null;
+    try {
+      raw = window.localStorage.getItem(G.LEADERBOARD_KEY);
+    } catch (error) {
+      return [];
+    }
+    if (raw === null) {
+      return [];
+    }
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      return [];
+    }
+    // 화면은 늘 정렬 결과와 같은 순서다 (SPEC_03 §3.2). 저장값은 건드리지 않는다.
+    return G.sortRecords(G.sanitizeRecords(parsed)).slice(0, G.LEADERBOARD_LIMIT);
+  }
+
+  function writeLeaderboard() {
+    try {
+      window.localStorage.setItem(G.LEADERBOARD_KEY, JSON.stringify(leaderboard));
+    } catch (error) {
+      // 저장소가 막혀 있어도 게임을 멈추지 않는다.
+    }
+  }
+
+  function getLeaderboard() {
+    return leaderboard.slice();
+  }
+
+  function isSavedForCurrentGame() {
+    return savedForCurrentGame;
+  }
+
+  function makeId() {
+    return 'r' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
+  }
+
+  // 중복 저장은 UI 가 아니라 여기 2단계가 막는다.
+  function saveResult(rawName) {
+    if (appState.status !== G.GAME_STATUS.GAME_OVER || !gameOverResult) {
+      return { ok: false, reason: 'NOT_GAME_OVER' };
+    }
+    if (savedForCurrentGame) {
+      return { ok: false, reason: 'ALREADY_SAVED' };
+    }
+    var checked = G.validateName(rawName);
+    if (!checked.ok) {
+      setText('name-error', ERROR_TEXT[checked.reason] || '');
+      return { ok: false, reason: checked.reason };
+    }
+    leaderboard = G.addRecord(leaderboard, {
+      id: makeId(),
+      name: checked.name,
+      score: gameOverResult.score,
+      clearedLines: gameOverResult.clearedLines,
+      playedAt: Date.now()
+    });
+    writeLeaderboard();
+    savedForCurrentGame = true;
+    render(appState);
+    setText('name-error', '저장 완료');
+    return { ok: true, reason: null };
+  }
+
+  function clearLeaderboard() {
+    if (!window.confirm('리더보드를 모두 지울까요?')) {
+      return false;
+    }
+    leaderboard = [];
+    writeLeaderboard();
+    render(appState);
+    return true;
+  }
+
+  function onSaveClick() {
+    var input = document.querySelector('[data-role="name-input"]');
+    saveResult(input ? input.value : '');
+  }
+
   globalThis.TetrisApp = {
     render: render,
     getActiveDropTimerCount: getActiveDropTimerCount,
     tick: tick,
     getDropStats: getDropStats,
-    loadState: loadState
+    loadState: loadState,
+    getLeaderboard: getLeaderboard,
+    saveResult: saveResult,
+    clearLeaderboard: clearLeaderboard,
+    isSavedForCurrentGame: isSavedForCurrentGame
   };
 
   var startButton = document.querySelector('[data-role="start"]');
   if (startButton) {
     startButton.addEventListener('click', onStartClick);
   }
+  var saveButton = document.querySelector('[data-role="save"]');
+  if (saveButton) {
+    saveButton.addEventListener('click', onSaveClick);
+  }
+  var clearButton = document.querySelector('[data-role="clear-leaderboard"]');
+  if (clearButton) {
+    clearButton.addEventListener('click', clearLeaderboard);
+  }
   // 리스너는 하나만 붙인다. 재시작마다 새로 붙이면 입력이 중복 처리된다.
   window.addEventListener('keydown', onKeyDown);
 
+  leaderboard = loadLeaderboard();
   render(appState);
 })();

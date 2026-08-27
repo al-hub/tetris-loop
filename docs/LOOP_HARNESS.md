@@ -45,6 +45,7 @@ tetris-loop/
 ├── .claude/
 │   ├── loop.md                 tick 디스패처 — 계속할지 끊을지만 결정
 │   └── skills/
+│       ├── spec-new/           다음 SPEC 문서 작성 + 배선 (문서 전용)
 │       ├── spec-loop/          루프 1회 실행 (구현 + 기록 + 커밋)
 │       ├── spec-verify/        브라우저 검증 게이트 (관측 전용)
 │       └── spec-status/        진행 보고 (읽기 전용)
@@ -58,6 +59,7 @@ tetris-loop/
 | 파일 | 하는 일 | 절대 안 하는 일 |
 |------|---------|-----------------|
 | `.claude/loop.md` | 상태 읽고 `/spec-loop` 호출, 재예약/정지 판단 | 코드 수정 |
+| `spec-new` | SPEC 문서 작성, 완료 조건 감사, 네 곳 배선, 문서 커밋 | 산출물 코드 작성, 검증, 루프 시작 |
 | `spec-loop` | 구현, 리포트, 상태 갱신, 통과 시 커밋 | `ScheduleWakeup` 호출 |
 | `spec-verify` | 브라우저 관측, 항목별 판정 | 코드 수정, 상태 파일 쓰기 |
 | `spec-status` | 요약 출력 | 모든 쓰기 |
@@ -134,6 +136,7 @@ claude --chrome
 | `/spec-loop` | 루프 없이 한 걸음만 |
 | `/spec-verify` | 지금 상태를 검증만 |
 | `/spec-status` | 진행 확인 (아무것도 안 고침) |
+| `/spec-new <목표>` | 다음 SPEC 문서 작성 + 배선. 루프는 시작하지 않음 |
 
 `/loop /spec-loop` 을 1차로 두는 이유: `loop.md` 경로는 서버 측 기능 플래그
 (`tengu_kairos_loop_prompt`)에 걸려 있어서 꺼져 있으면 사용법만 출력하고 만다.
@@ -148,13 +151,18 @@ SPEC 이 `PASSED` · `BLOCKED` · `HALTED` 가 되면 루프가 스스로 멈춘
 
 **자동으로 넘어가지 않는다.** 의도된 설계다 — SPEC 경계는 사람이 결과를 보고 넘는 지점이다.
 
+`/spec-new <목표>` 가 1~3 을 대신한다. 문서를 쓰고 완료 조건을 감사한 뒤
+사람 승인을 받고 네 곳(§7)을 배선한다. 루프는 시작하지 않는다.
+
+수동으로 할 때의 절차는 이렇다.
+
 1. 새 SPEC 문서를 쓴다 (`SPEC_01_*.md`). frontmatter 에 `id` · `depends_on` · `max_iterations`.
 2. `.loop/state/progress.json` 을 갱신한다.
    - `current_spec` · `spec_file` 을 새 SPEC 으로
    - `iteration` → `0`, `status` → `PENDING`
    - `failure_signatures` → `[]`, `checklist` → 새 SPEC 의 완료 조건으로 교체
    - `human_input_needed` → `null`
-3. `MEMORY.md` 를 같은 내용으로 맞춘다.
+3. `MEMORY.md` 와 `CLAUDE.md` §1 을 같은 내용으로 맞춘다.
 4. `claude --chrome` 세션에서 `/loop /spec-loop`.
 
 `.loop/reports/` 는 지우지 않는다. SPEC 별 파일명(`<SPEC>-iter-<N>.md`)으로 누적되고,
@@ -162,15 +170,19 @@ SPEC 이 `PASSED` · `BLOCKED` · `HALTED` 가 되면 루프가 스스로 멈춘
 
 ## 7. SPEC 을 고치면 같이 고쳐야 하는 것
 
-완료 조건 목록은 세 군데에 복제되어 있다. SPEC 을 개정하면 셋을 함께 맞춰야 한다.
+완료 조건 목록은 네 군데에 복제되어 있다. SPEC 을 개정하면 넷을 함께 맞춰야 한다.
+`/spec-new` 는 이 배선을 단계 6 에서 한 번에 수행한다.
 
 | 파일 | 무엇 |
 |------|------|
 | `SPEC_*.md` §6 | 원본 완료 조건 |
 | `.loop/state/progress.json` `checklist` | 항목별 판정을 담는 키 |
 | `.claude/skills/spec-verify/SKILL.md` | 항목별 관측 방법 |
+| `CLAUDE.md` §1~§3 | 현재 SPEC 파일명, 산출물·구조 제약 |
 
 `MEMORY.md` 의 체크리스트 표도 사람용 사본이라 함께 갱신한다.
+`spec-verify` 관측표 갱신이 가장 위험한 누락이다 — 빼먹으면 게이트가 지난 SPEC 을
+관측하고 통과를 보고한다.
 이 복제는 의도한 것이다 — 검증 스킬이 SPEC 을 매번 해석하게 두면
 같은 조건을 tick 마다 다르게 읽는다.
 

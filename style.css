@@ -124,6 +124,26 @@ main {
   overflow-wrap: break-word;
 }
 
+/* NEXT 미리보기 — 보드와 같은 셀 크기·색 규칙을 쓴다 (SPEC_05 §3.1) */
+.next {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.next h2 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.next-grid {
+  display: grid;
+  grid-template-columns: repeat(4, var(--cell-size));
+  border: 1px solid var(--line);
+  width: max-content;
+}
+
 /* 게임오버 결과 영역과 리더보드 (SPEC_03 §3) */
 .gameover,
 .leaderboard {

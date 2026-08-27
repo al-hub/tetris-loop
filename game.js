@@ -274,6 +274,7 @@
     return {
       board: state.board,
       piece: piece,
+      next: state.next === undefined ? null : state.next,
       score: state.score,
       lines: state.lines,
       status: status
@@ -297,21 +298,34 @@
 
   // 고정 -> 완성 줄 전체 탐색 -> 동시 제거 -> 압축 -> 줄 수 누적 -> 다음 블록 -> 게임오버 판정.
   // 순서를 바꾸지 않는다. 한 입력·한 tick 에서 한 번만 호출된다.
-  function lockAndAdvance(state) {
+  // 블록 공급자는 (prevType) => type 이다. 생략하면 순환. main.js 는 넘기지 않는다 (SPEC_05 §4.3).
+  function resolveSupply(supply) {
+    return typeof supply === 'function' ? supply : nextPieceType;
+  }
+
+  function lockAndAdvance(state, supply) {
     if (!state || state.status !== GAME_STATUS.PLAYING || !state.piece) {
       return state;
     }
+    var pick = resolveSupply(supply);
     var locked = lockPiece(state.board, state.piece);
     var full = findFullRows(locked);
     var cleared = clearRows(locked, full);
     var lines = state.lines + full.length;
     // 제거 직전 레벨을 곱한다. 갱신된 레벨은 다음 줄 제거부터 (SPEC_04 §4.4).
     var score = state.score + scoreForLines(full.length) * levelForLines(state.lines);
-    var next = createPiece(nextPieceType(state.piece.type));
-    var placeable = canPlace(cleared, next);
+    // 미리 본 NEXT 를 그대로 승격한다. 공급자를 부르지 않는다.
+    // next 가 없는 옛 상태(앞 SPEC 형식)에서만 한 번 공급해 보충한다 (SPEC_05 §4.5).
+    var hasNext = typeof state.next === 'string';
+    var promotedType = hasNext ? state.next : pick(state.piece.type);
+    var promoted = createPiece(promotedType);
+    var placeable = canPlace(cleared, promoted);
+    // 배치 가능할 때만 새 NEXT 하나를 공급한다. 게임오버면 부르지 않고 next 도 그대로 둔다.
+    var newNext = placeable ? pick(promotedType) : (hasNext ? state.next : null);
     return {
       board: cleared,
-      piece: placeable ? next : null,
+      piece: placeable ? promoted : null,
+      next: newNext,
       score: score,
       lines: lines,
       status: placeable ? GAME_STATUS.PLAYING : GAME_STATUS.GAME_OVER
@@ -335,11 +349,15 @@
     return state;
   }
 
-  function startGame(state) {
+  // 두 번 공급한다 — 첫 결과가 현재 블록, 둘째가 NEXT. 이전 게임의 next 는 쓰지 않는다 (SPEC_05 §4.4).
+  function startGame(state, supply) {
+    var pick = resolveSupply(supply);
     var prevType = state && state.piece ? state.piece.type : null;
+    var first = pick(prevType);
     return {
       board: createEmptyBoard(),
-      piece: createPiece(nextPieceType(prevType)),
+      piece: createPiece(first),
+      next: pick(first),
       score: 0,
       lines: 0,
       status: GAME_STATUS.PLAYING
@@ -351,6 +369,7 @@
     return {
       board: createEmptyBoard(),
       piece: null,
+      next: null,
       score: 0,
       lines: 0,
       status: GAME_STATUS.READY

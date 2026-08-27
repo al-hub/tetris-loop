@@ -296,12 +296,6 @@
     assert(G.createInitialState().piece === null, 'piece=' + J(G.createInitialState().piece));
   });
 
-  test('initial-state-keys-five', '초기 상태 키가 다섯 개다', function () {
-    var keys = Object.keys(G.createInitialState()).sort();
-    var want = ['board', 'lines', 'piece', 'score', 'status'].join(',');
-    assert(keys.join(',') === want, '키=' + keys.join(','));
-  });
-
   test('start-game-from-ready-type-i', '초기 상태에서 시작하면 PLAYING · I 다', function () {
     var next = G.startGame(G.createInitialState());
     assert(next.status === 'PLAYING', 'status=' + next.status);
@@ -979,6 +973,190 @@
 
   test('score-table-unchanged', 'SCORE_TABLE 이 그대로다', function () {
     assert(J(G.SCORE_TABLE) === J([0, 100, 300, 500, 800]), '실제=' + J(G.SCORE_TABLE));
+  });
+
+  // ======================= SPEC_05 §7.3 — 신규 =======================
+
+  function makeSupply(queue) {
+    var q = queue.slice();
+    var s = function (prev) { s.calls += 1; s.args.push(prev); return q.shift(); };
+    s.calls = 0;
+    s.args = [];
+    return s;
+  }
+
+  function bottomT() {
+    return { type: 'T', cells: G.createPiece('T').cells, row: 18, col: 3 };
+  }
+
+  function playingNext(board, piece, next, extra) {
+    var st = playing(board, piece, extra);
+    st.next = next;
+    return st;
+  }
+
+  function blockedTopBoard() {
+    var b = emptyBoard();
+    [0, 1, 2, 3].forEach(function (r) { fillRow(b, r, 0, 8, 'O'); });
+    return b;
+  }
+
+  test('initial-state-keys-six', '초기 상태 키가 여섯 개다', function () {
+    var keys = Object.keys(G.createInitialState()).sort().join(',');
+    assert(keys === 'board,lines,next,piece,score,status', '키=' + keys);
+  });
+
+  test('initial-state-next-null', '초기 상태 next 는 null 이다', function () {
+    assert(G.createInitialState().next === null, 'next=' + J(G.createInitialState().next));
+  });
+
+  test('start-game-sets-next', '기본 공급자로 시작하면 I / next O 다', function () {
+    var r = G.startGame(G.createInitialState());
+    assert(r.piece.type === 'I' && r.next === 'O', 'piece=' + r.piece.type + ' next=' + r.next);
+  });
+
+  test('start-game-supply-two-calls', '공급자 [T,I,L] 로 시작하면 (T,I) 이고 2회 호출이다', function () {
+    var s = makeSupply(['T', 'I', 'L']);
+    var r = G.startGame(null, s);
+    assert(r.piece.type === 'T' && r.next === 'I', 'piece=' + r.piece.type + ' next=' + r.next);
+    assert(s.calls === 2, 'calls=' + s.calls);
+  });
+
+  test('start-game-supply-order', '첫 호출 결과가 piece, 둘째가 next 다', function () {
+    var r = G.startGame(null, makeSupply(['Z', 'J']));
+    assert(r.piece.type === 'Z', 'piece=' + r.piece.type);
+    assert(r.next === 'J', 'next=' + r.next);
+  });
+
+  test('start-game-ignores-previous-next', '재시작은 이전 next 를 쓰지 않는다', function () {
+    var prev = playingNext(emptyBoard(), G.createPiece('L'), 'O', { status: 'GAME_OVER' });
+    var s = makeSupply(['S', 'Z']);
+    var r = G.startGame(prev, s);
+    assert(r.piece.type === 'S' && r.next === 'Z', 'piece=' + r.piece.type + ' next=' + r.next);
+    assert(s.calls === 2, 'calls=' + s.calls);
+  });
+
+  test('start-game-supply-prev-arg', '공급자 인자가 이전 종류 → 첫 결과 순이다', function () {
+    var s1 = makeSupply(['T', 'I']);
+    G.startGame(null, s1);
+    assert(J(s1.args) === J([null, 'T']), 'args=' + J(s1.args));
+    var s2 = makeSupply(['T', 'I']);
+    G.startGame(playing(emptyBoard(), G.createPiece('L')), s2);
+    assert(J(s2.args) === J(['L', 'T']), 'args=' + J(s2.args));
+  });
+
+  test('lock-promotes-next', '굳으면 next 가 현재 블록이 된다', function () {
+    var r = G.lockAndAdvance(playingNext(emptyBoard(), bottomT(), 'I'), makeSupply(['L']));
+    assert(r.piece.type === 'I', 'piece=' + (r.piece && r.piece.type));
+  });
+
+  test('lock-promoted-uses-spawn-rule', '승격 블록의 좌표는 createPiece 규칙이다', function () {
+    var r = G.lockAndAdvance(playingNext(emptyBoard(), bottomT(), 'I'), makeSupply(['L']));
+    var want = G.createPiece('I');
+    assert(J(r.piece.cells) === J(want.cells), 'cells 불일치');
+    assert(r.piece.row === want.row && r.piece.col === want.col, 'row/col=' + r.piece.row + '/' + r.piece.col);
+  });
+
+  test('lock-supplies-new-next-once', '승격 후 next 를 정확히 한 번 공급한다', function () {
+    var s = makeSupply(['L']);
+    var r = G.lockAndAdvance(playingNext(emptyBoard(), bottomT(), 'I'), s);
+    assert(r.next === 'L', 'next=' + r.next);
+    assert(s.calls === 1, 'calls=' + s.calls);
+  });
+
+  test('lock-supply-after-promotion', '공급자 인자가 승격된 종류다', function () {
+    var s = makeSupply(['L']);
+    G.lockAndAdvance(playingNext(emptyBoard(), bottomT(), 'I'), s);
+    assert(J(s.args) === J(['I']), 'args=' + J(s.args));
+  });
+
+  test('lock-sequence-tilo', '[T,I,L,O,Z] 에서 (T,I)(I,L)(L,O)(O,Z), calls 2·3·4·5 다', function () {
+    var s = makeSupply(['T', 'I', 'L', 'O', 'Z']);
+    var st = G.startGame(null, s);
+    var trace = [[st.piece.type, st.next, s.calls]];
+    var cols = [0, 3, 7];
+    for (var k = 0; k < 3; k += 1) {
+      var N = st.piece.cells.length;
+      var moved = { type: st.piece.type, cells: st.piece.cells, row: 18 - (N - 3), col: cols[k] };
+      st = G.lockAndAdvance({ board: st.board, piece: moved, next: st.next, score: st.score, lines: st.lines, status: st.status }, s);
+      assert(st.status === 'PLAYING', k + '회차 status=' + st.status);
+      trace.push([st.piece.type, st.next, s.calls]);
+    }
+    assert(J(trace) === J([['T', 'I', 2], ['I', 'L', 3], ['L', 'O', 4], ['O', 'Z', 5]]), '궤적=' + J(trace));
+  });
+
+  test('lock-null-next-falls-back-to-cycle', 'next 가 없으면 순환으로 보충한다', function () {
+    var r = G.lockAndAdvance(playing(emptyBoard(), bottomT()));
+    assert(r.piece.type === 'S' && r.next === 'Z', 'piece=' + r.piece.type + ' next=' + r.next);
+  });
+
+  test('lock-game-over-keeps-next', '생성이 막히면 GAME_OVER 이고 next 는 그대로다', function () {
+    var r = G.lockAndAdvance(playingNext(blockedTopBoard(), verticalI(), 'T'), makeSupply(['O']));
+    assert(r.status === 'GAME_OVER', 'status=' + r.status);
+    assert(r.next === 'T', 'next=' + r.next);
+  });
+
+  test('lock-game-over-no-supply', '게임오버면 공급자를 부르지 않는다', function () {
+    var s = makeSupply(['O']);
+    G.lockAndAdvance(playingNext(blockedTopBoard(), verticalI(), 'T'), s);
+    assert(s.calls === 0, 'calls=' + s.calls);
+  });
+
+  test('lock-game-over-piece-null', '게임오버면 piece 가 null 이다', function () {
+    var r = G.lockAndAdvance(playingNext(blockedTopBoard(), verticalI(), 'T'), makeSupply(['O']));
+    assert(r.piece === null, 'piece=' + J(r.piece));
+  });
+
+  test('lock-ignored-when-not-playing-keeps-next', 'GAME_OVER 에서 lockAndAdvance 는 인자 그대로다', function () {
+    var st = playingNext(emptyBoard(), null, 'T', { status: 'GAME_OVER' });
+    assert(G.lockAndAdvance(st, makeSupply(['O'])) === st, '같은 참조가 아니다');
+  });
+
+  test('apply-move-keeps-next', '이동은 next 를 바꾸지 않는다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'S');
+    var a = G.applyMove(st, 0, -1), b = G.applyMove(st, 0, 1), c = G.applyMove(st, 1, 0);
+    assert(a.next === 'S' && b.next === 'S' && c.next === 'S', 'next=' + [a.next, b.next, c.next].join(','));
+  });
+
+  test('apply-rotate-keeps-next', '회전은 next 를 바꾸지 않는다', function () {
+    var r = G.applyRotate(playingNext(emptyBoard(), G.createPiece('T'), 'S'));
+    assert(r.next === 'S', 'next=' + r.next);
+  });
+
+  test('next-does-not-touch-board', 'next 만 다른 두 상태의 board 는 같다', function () {
+    var a = playingNext(fillRow(emptyBoard(), 19, 0, 4, 'O'), G.createPiece('T'), 'I');
+    var b = playingNext(fillRow(emptyBoard(), 19, 0, 4, 'O'), G.createPiece('T'), 'L');
+    assert(J(a.board) === J(b.board), 'board 가 다르다');
+    assert(G.canPlace(a.board, a.piece) === G.canPlace(b.board, b.piece), 'canPlace 가 다르다');
+  });
+
+  test('next-type-is-single-char', '정상 상태의 next 는 PIECE_TYPES 원소 하나다', function () {
+    var r = G.startGame(G.createInitialState());
+    assert(typeof r.next === 'string' && r.next.length === 1 && G.PIECE_TYPES.indexOf(r.next) >= 0, 'next=' + J(r.next));
+  });
+
+  test('next-grid-index-table', '일곱 종류의 4x4 중앙 배치 인덱스가 표와 같다', function () {
+    var want = { I: [4, 5, 6, 7], O: [5, 6, 9, 10], T: [1, 4, 5, 6], S: [1, 2, 4, 5], Z: [0, 1, 5, 6], J: [0, 4, 5, 6], L: [2, 4, 5, 6] };
+    G.PIECE_TYPES.forEach(function (t) {
+      var m = G.PIECE_SHAPES[t], off = Math.floor((4 - m.length) / 2), idx = [];
+      for (var i = 0; i < m.length; i += 1) for (var j = 0; j < m[i].length; j += 1) if (m[i][j]) idx.push((i + off) * 4 + (j + off));
+      assert(J(idx) === J(want[t]), t + ' 인덱스=' + J(idx));
+    });
+  });
+
+  test('default-supply-is-cycle', '공급자를 생략하면 순환과 같다', function () {
+    var a = G.startGame(playing(emptyBoard(), G.createPiece('T')));
+    assert(a.piece.type === G.nextPieceType('T') && a.next === G.nextPieceType(a.piece.type), 'start=' + a.piece.type + '/' + a.next);
+    var b = G.lockAndAdvance(playingNext(emptyBoard(), bottomT(), 'J'));
+    assert(b.piece.type === 'J' && b.next === G.nextPieceType('J'), 'lock=' + b.piece.type + '/' + b.next);
+  });
+
+  test('record-has-no-next', '기록 검사는 다섯 키만 본다', function () {
+    var rec = { id: 'a', name: 'A', score: 1, clearedLines: 1, playedAt: 1 };
+    assert(G.sanitizeRecords([rec]).length === 1, 'next 없는 기록이 제거됐다');
+    var withNext = G.sanitizeRecords([Object.assign({ next: 'T' }, rec)])[0];
+    assert(withNext !== undefined, 'next 가 있어도 유효 기록은 남아야 한다');
+    assert(Object.keys(rec).sort().join(',') === 'clearedLines,id,name,playedAt,score', '다섯 키');
   });
 
   // ======================= 결과 표시 =======================

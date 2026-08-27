@@ -66,6 +66,33 @@
     }
   }
 
+  // NEXT 격자 16칸. 행렬을 4x4 중앙에 놓고 채워진 칸에만 data-piece 를 붙인다 (SPEC_05 §3.1).
+  function renderNext(next) {
+    var cells = document.querySelectorAll('[data-role="next-cell"]');
+    if (!cells || cells.length === 0) {
+      return;
+    }
+    var filled = {};
+    if (typeof next === 'string' && G.PIECE_SHAPES[next]) {
+      var shape = G.PIECE_SHAPES[next];
+      var off = Math.floor((4 - shape.length) / 2);
+      for (var i = 0; i < shape.length; i += 1) {
+        for (var j = 0; j < shape[i].length; j += 1) {
+          if (shape[i][j] !== 0) {
+            filled[(i + off) * 4 + (j + off)] = true;
+          }
+        }
+      }
+    }
+    for (var k = 0; k < cells.length; k += 1) {
+      if (filled[k]) {
+        cells[k].setAttribute('data-piece', next);
+      } else {
+        cells[k].removeAttribute('data-piece');
+      }
+    }
+  }
+
   function renderGameOver(state) {
     var section = document.querySelector('[data-role="gameover"]');
     if (!section) {
@@ -118,6 +145,7 @@
     setText('lines', state.lines);
     setText('status', state.status);
     setText('level', G.levelForLines(state.lines));
+    renderNext(state.next);
     renderGameOver(state);
     renderLeaderboard();
   }

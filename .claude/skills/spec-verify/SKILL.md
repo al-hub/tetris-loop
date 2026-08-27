@@ -31,7 +31,7 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 사유: 브라우저 도구 없음. `claude --chrome` 으로 세션을 다시 열어야 검증 가능.
 ```
 
-파일시스템만으로 되는 항목(1·4·5)도 이때는 판정하지 않는다.
+파일시스템만으로 되는 항목(6-1·6-2·6-4·6-5)도 이때는 판정하지 않는다.
 부분 판정은 "일부 통과" 라는 잘못된 인상을 만든다.
 
 ## 단계 1 — 정적 검사 (파일시스템)
@@ -40,9 +40,10 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 1 | 산출물이 여섯 개뿐 | `ls -a` — `index.html` `style.css` `game.js` `main.js` `test.html` `test.js` 존재. 이 외 산출물 파일 없음. 하네스 파일(`CLAUDE.md` `MEMORY.md` `SPEC_*.md` `docs/` `.claude/` `.loop/` `.git/` `.gitignore`)은 세지 않는다 |
-| 4 | 스크립트 로드 순서 | `index.html` 안에서 `style.css` 링크, `game.js`, `main.js` 순서. `game.js` 가 `main.js` 보다 먼저이고 둘 다 `defer`. `test.html` 은 `game.js`, `test.js` 를 직접 로드 |
-| 5 | 설치·빌드 불필요 | `package.json`, lockfile, `node_modules/`, 번들러/TS 설정 파일이 없음. HTML 에 CDN·외부 URL 참조 없음 |
+| 6-1 | 산출물 집합 일치 | `ls -a` — `index.html` `style.css` `game.js` `main.js` `test.html` `test.js` 정확히 이 여섯 개. 하네스 파일(`CLAUDE.md` `MEMORY.md` `SPEC_*.md` `docs/` `.claude/` `.loop/` `.git/` `.gitignore`)은 세지 않는다 (SPEC §2.1) |
+| 6-2 | 설치·외부참조 없음 | `package.json` · lockfile · `node_modules/` · 번들러/TS 설정 파일 부재. 두 HTML 을 grep 해 `http://` `https://` `//cdn` 참조 0건 |
+| 6-4 | `index.html` 로드 순서 | `style.css` → `game.js` → `main.js` 순. 두 `<script>` 에 `defer` 있고 `type="module"` 없음 |
+| 6-5 | `test.html` 로드 순서 | `game.js` → `test.js` 순 |
 
 ## 단계 2 — 브라우저 검사
 
@@ -52,35 +53,39 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 3 | 모든 테스트 통과 | `test.html` 을 열고 화면의 통과/실패 개수를 읽는다. 실패가 0 이고 통과가 1 이상이어야 `PASS`. 실패가 있으면 실패 이유 텍스트를 그대로 근거에 옮긴다. 러너가 결과를 표시하지 않으면 `BLOCKED` |
+| 6-6 | 테스트 통과 | `#test-summary` 의 `data-fail` 이 `0`, `data-pass` 가 `18` 이상. 그리고 SPEC §7.2 의 `data-name` 18개가 `#test-results` 에 전부 있는지 대조. 하나라도 빠지면 `FAIL`, 빠진 이름을 근거에 적는다. `#test-summary` 가 없으면 `BLOCKED` |
 
-SPEC_00 §7 이 요구하는 테스트가 실제로 있는지도 함께 본다 —
-`globalThis.TetrisGame` 과 필수 함수 존재, `BOARD_WIDTH`/`BOARD_HEIGHT`, 빈 보드 20×10 전부 `0`,
-**두 번 만든 빈 보드가 행 배열을 공유하지 않음**, 초기 상태의 점수·줄 수·상태.
-빠진 항목이 있으면 3번을 `FAIL` 로 두고 근거에 무엇이 빠졌는지 적는다.
+실패한 `<li>` 가 있으면 그 텍스트를 그대로 근거에 옮긴다.
 
 ### 2b. `index.html`
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 2 | 콘솔 오류 없음 | 페이지를 열고 콘솔을 읽는다. error 레벨 0 건이어야 `PASS`. 404 를 포함한다 |
-| 6 | 보드 10열×20행 | DOM 에서 셀 총 200개. 첫 행과 마지막 행이 각각 10개. 행이 20개 |
-| 7 | 상태 패널 | 점수 `0`, 제거한 줄 `0`, 게임 상태 `READY` 가 화면에 렌더됨. 페이지 제목이 `TETRIS LOOP` |
-| 8 | 버튼 + 조작 안내 | `시작` 버튼 존재. 안내 문구 `← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지` 가 화면에 있음 (SPEC 원문과 문자 단위로 대조) |
+| 6-3 | 콘솔 오류 없음 | 로드 완료 후 5초까지 error 레벨 0건. warning 은 세지 않는다 |
+| 6-7 | 보드 20×10 | `[data-role="row"]` 20개, 각 행의 `[data-role="cell"]` 10개, 문서 전체 셀 200개 |
+| 6-8 | 상태 패널 | `[data-role="score"]`=`0`, `[data-role="lines"]`=`0`, `[data-role="status"]`=`READY`. 라벨 `점수` · `제거한 줄` · `게임 상태` 존재 |
+| 6-9 | 제목 | `<title>` 과 `<h1>` 이 모두 `TETRIS LOOP` |
+| 6-10 | 버튼 + 조작 안내 | `[data-role="start"]` 텍스트 `시작`. `[data-role="controls"]` 텍스트가 아래와 **문자 단위로** 일치 (복사해서 대조할 것)<br>`← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지` |
 
-레이아웃도 본다 — 데스크톱 폭에서 보드가 왼쪽, 상태 패널이 오른쪽.
-
-### 2c. 반응형
-
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 9 | 390px 가로 스크롤 없음 | 뷰포트 폭을 390px 로 바꾸고 `document.documentElement.scrollWidth <= document.documentElement.clientWidth` 확인. 보드와 상태 패널이 세로로 배치되는지도 본다 |
-
-### 2d. 정지 상태
+### 2c. 배선 확인 (하드코딩 탐지)
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 10 | 블록 없음·움직임 없음 | 보드 셀 상태를 스냅샷으로 뜬다. 5초 기다린 뒤, 그리고 `←` `→` `↓` `↑` `Space` 를 눌러본 뒤 다시 스냅샷을 떠서 완전히 같은지 확인. 달라지면 `FAIL` |
+| 6-11 | `main.js` 가 `game.js` 를 실제로 씀 | 콘솔에서 다음을 실행한 뒤 패널이 `1234` · `7` · `PAUSED` 로 바뀌는지 확인<br>`TetrisApp.render({...TetrisGame.createInitialState(), score: 1234, lines: 7, status: 'PAUSED'})`<br>안 바뀌면 값이 HTML 에 박혀 있는 것 → `FAIL`. 확인 후 페이지를 새로고침해 6-13 스냅샷을 오염시키지 않는다 |
+
+### 2d. 반응형
+
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-12 | 여섯 폭에서 가로 스크롤 없음 | 폭 320 · 390 · 480 · 768 · 1024 · 1440px 각각에서 `document.documentElement.scrollWidth <= document.documentElement.clientWidth`. 추가로 390px 에서 세로 배치, 1024px 에서 좌우 배치 확인. 세로 스크롤은 허용이므로 보지 않는다 |
+
+여섯 폭 중 하나라도 실패하면 `FAIL` 이고, 어느 폭인지 근거에 적는다.
+
+### 2e. 정지 상태
+
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-13 | 화면 불변 | 보드 200셀과 패널 세 값의 스냅샷을 뜬다. 5초 대기 → `←` `→` `↓` `↑` `Space` `P` 입력 → `시작` 버튼 클릭. 다시 스냅샷을 떠서 완전히 같은지 확인. 달라지면 `FAIL` |
 
 ## 반환 형식
 
@@ -89,11 +94,11 @@ SPEC_00 §7 이 요구하는 테스트가 실제로 있는지도 함께 본다 �
 
 | # | 항목 | 결과 | 근거 |
 |---|------|------|------|
-| 1 | 여섯 개 파일만 존재 | PASS | ls 결과 정확히 6개, 추가 산출물 없음 |
-| 2 | 콘솔 오류 없음 | FAIL | `GET file:///.../styles.css 404` |
+| 6-1 | 산출물 집합 일치 | PASS | ls 결과 정확히 6개, 추가 산출물 없음 |
+| 6-3 | 콘솔 오류 없음 | FAIL | `GET file:///.../styles.css 404` |
 ...
 
-- 종합: PASS 8 / FAIL 1 / BLOCKED 1
+- 종합: PASS 11 / FAIL 1 / BLOCKED 1
 - 판정: FAILED
 - 실패 시그니처: `index.html:css-path-typo`
 ```

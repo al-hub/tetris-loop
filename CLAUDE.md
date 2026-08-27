@@ -30,9 +30,13 @@
 ## 3. 코드 구조
 
 - `game.js` 는 **DOM 에 접근하지 않는 순수 로직**이다. `globalThis.TetrisGame` 하나로만 공개한다.
-- `main.js` 가 DOM 렌더링과 이벤트 연결을 담당한다.
+- `main.js` 가 DOM 렌더링을 담당하고 `globalThis.TetrisApp` 하나로만 공개한다.
 - `test.js` 는 `game.js` 의 공개 API 만 검증한다.
 - 이 분리를 지켜야 `test.html` 이 브라우저에서 독립적으로 돌아간다.
+- **화면 값을 HTML 에 하드코딩하지 않는다.** 보드 크기와 패널 값은 반드시
+  `TetrisGame` 이 만든 상태 객체에서 읽어 렌더한다 (SPEC §4.5, 완료 조건 6-11 이 이를 검사한다).
+- 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
+- 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 
 ## 4. 범위 통제
 

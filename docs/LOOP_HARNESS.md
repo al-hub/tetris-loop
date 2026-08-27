@@ -74,11 +74,12 @@ tetris-loop/
   "schema": 1,
   "current_spec": "SPEC_00",
   "spec_file": "SPEC_00_PROJECT.md",
+  "spec_revision": 2,
   "iteration": 0,
   "max_iterations": 3,
   "status": "PENDING",
   "failure_signatures": [],
-  "checklist": { "1_six_files_only": "UNKNOWN" },
+  "checklist": { "6-1_file_set_exact": "UNKNOWN" },
   "last_report": null,
   "human_input_needed": null,
   "updated_at": null
@@ -159,7 +160,21 @@ SPEC 이 `PASSED` · `BLOCKED` · `HALTED` 가 되면 루프가 스스로 멈춘
 `.loop/reports/` 는 지우지 않는다. SPEC 별 파일명(`<SPEC>-iter-<N>.md`)으로 누적되고,
 커밋 대상이다 — 루프가 무엇을 왜 했는지가 이력이다.
 
-## 7. 아는 한계
+## 7. SPEC 을 고치면 같이 고쳐야 하는 것
+
+완료 조건 목록은 세 군데에 복제되어 있다. SPEC 을 개정하면 셋을 함께 맞춰야 한다.
+
+| 파일 | 무엇 |
+|------|------|
+| `SPEC_*.md` §6 | 원본 완료 조건 |
+| `.loop/state/progress.json` `checklist` | 항목별 판정을 담는 키 |
+| `.claude/skills/spec-verify/SKILL.md` | 항목별 관측 방법 |
+
+`MEMORY.md` 의 체크리스트 표도 사람용 사본이라 함께 갱신한다.
+이 복제는 의도한 것이다 — 검증 스킬이 SPEC 을 매번 해석하게 두면
+같은 조건을 tick 마다 다르게 읽는다.
+
+## 8. 아는 한계
 
 - 검증이 `claude --chrome` 세션에 의존한다. 헤드리스 CI 에서는 못 돈다.
 - `loop.md` 훅 경로는 서버 기능 플래그에 의존한다. `/loop /spec-loop` 이 안전한 쪽이다.

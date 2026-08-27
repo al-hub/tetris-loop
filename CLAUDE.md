@@ -7,16 +7,18 @@
 
 ## 1. 지금 작업 중인 SPEC
 
-`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_03_SCORE_AND_LEADERBOARD.md`.
-앞 SPEC 셋(`SPEC_00` · `SPEC_01` · `SPEC_02`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
+`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_04_LEVEL_AND_SPEED.md`.
+앞 SPEC 넷(`SPEC_00` ~ `SPEC_03`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
 SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮고,
 SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조건 6-15·6-16·6-22 ·
 필수 테스트 4개를 덮고,
 SPEC_03 §2 가 SPEC_02 §5 "점수 범위 밖" · §3.2 "score 는 내내 0" · §4.4 score 불변 ·
-필수 테스트 `lock-and-advance-keeps-score` 를 덮는다.
+필수 테스트 `lock-and-advance-keeps-score` 를 덮고,
+SPEC_04 §2 가 SPEC_01 `DROP_INTERVAL_MS` 의 의미(레벨 1 값으로 축소) · `intervalMs` 계약 ·
+완료 조건 6-9c · SPEC_03 §4.3 점수 가산(직전 레벨을 곱함)을 덮는다.
 **SPEC 문서가 유일한 요구사항 출처다.** 이 CLAUDE.md 는 SPEC 을 대체하지 않고 제약만 고정한다.
 
-## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2 · SPEC_03 §2)
+## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2 · SPEC_03 §2 · SPEC_04 §2)
 
 - 산출물은 정확히 이 여섯 개뿐이다.
   `index.html` · `style.css` · `game.js` · `main.js` · `test.html` · `test.js`
@@ -65,6 +67,13 @@ SPEC_03 §2 가 SPEC_02 §5 "점수 범위 밖" · §3.2 "score 는 내내 0" ·
 - **중복 저장 방지는 UI 가 아니라 로직이 한다.** 버튼 `disabled` 는 보조일 뿐이고
   `TetrisApp.saveResult` 안에서 같은 게임의 두 번째 저장을 거부한다.
 - **서버와 통신하지 않는다.** `fetch`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 을 쓰지 않는다.
+- **레벨은 저장하지 않는다.** `state` 는 다섯 키 그대로고 레벨은 `levelForLines(state.lines)` 로
+  매번 계산한다. `state.level` 을 만들지 않는다.
+- **낙하 간격은 레벨에서 나온다.** 타이머를 만들 때 `dropIntervalForLevel(levelForLines(lines))` 를
+  넘기고, `DROP_INTERVAL_MS`(700)는 레벨 1 의 값으로만 남는다. 레벨이 바뀔 때만 타이머를 다시 건다 —
+  매 tick 마다 다시 걸면 간격이 리셋된다. 간격은 절대 100ms 미만이 되지 않는다.
+- **레벨 배수는 줄 제거 점수에만, 제거 직전 레벨로.** `scoreForLines(n) × levelForLines(state.lines)`.
+  드롭 점수는 이 프로젝트에 없다 — 만들지 않는다.
 - 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
 - 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 

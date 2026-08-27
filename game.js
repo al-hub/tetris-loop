@@ -124,6 +124,57 @@
     return ok;
   }
 
+  // 채워진 칸에 종류 문자를 적은 새 보드를 만든다. 원본은 건드리지 않는다.
+  function lockPiece(board, piece) {
+    var out = [];
+    for (var y = 0; y < board.length; y += 1) {
+      out.push(board[y].slice());
+    }
+    forEachFilled(piece, function (row, col) {
+      if (row >= 0 && row < out.length && col >= 0 && col < out[row].length) {
+        out[row][col] = piece.type;
+      }
+    });
+    return out;
+  }
+
+  // 열 10개가 전부 0 이 아닌 행. 오름차순.
+  function findFullRows(board) {
+    var rows = [];
+    for (var y = 0; y < board.length; y += 1) {
+      var complete = true;
+      for (var x = 0; x < board[y].length; x += 1) {
+        if (board[y][x] === 0) {
+          complete = false;
+          break;
+        }
+      }
+      if (complete) {
+        rows.push(y);
+      }
+    }
+    return rows;
+  }
+
+  // 주어진 행들을 한 번에 지우고 남은 행을 아래로 붙인다. 위쪽은 빈 행으로 채운다.
+  function clearRows(board, rows) {
+    var width = board.length > 0 ? board[0].length : BOARD_WIDTH;
+    var kept = [];
+    for (var y = 0; y < board.length; y += 1) {
+      if (rows.indexOf(y) < 0) {
+        kept.push(board[y].slice());
+      }
+    }
+    while (kept.length < board.length) {
+      var empty = [];
+      for (var x = 0; x < width; x += 1) {
+        empty.push(0);
+      }
+      kept.unshift(empty);
+    }
+    return kept;
+  }
+
   function shiftedPiece(piece, dRow, dCol) {
     return { type: piece.type, cells: piece.cells, row: piece.row + dRow, col: piece.col + dCol };
   }
@@ -148,9 +199,30 @@
       return withPiece(state, moved, state.status);
     }
     if (dRow > 0) {
-      return withPiece(state, state.piece, GAME_STATUS.LANDED);
+      return lockAndAdvance(state);
     }
     return state;
+  }
+
+  // 고정 -> 완성 줄 전체 탐색 -> 동시 제거 -> 압축 -> 줄 수 누적 -> 다음 블록 -> 게임오버 판정.
+  // 순서를 바꾸지 않는다. 한 입력·한 tick 에서 한 번만 호출된다.
+  function lockAndAdvance(state) {
+    if (!state || state.status !== GAME_STATUS.PLAYING || !state.piece) {
+      return state;
+    }
+    var locked = lockPiece(state.board, state.piece);
+    var full = findFullRows(locked);
+    var cleared = clearRows(locked, full);
+    var lines = state.lines + full.length;
+    var next = createPiece(nextPieceType(state.piece.type));
+    var placeable = canPlace(cleared, next);
+    return {
+      board: cleared,
+      piece: placeable ? next : null,
+      score: state.score,
+      lines: lines,
+      status: placeable ? GAME_STATUS.PLAYING : GAME_STATUS.GAME_OVER
+    };
   }
 
   // wall kick 을 하지 않는다. 경계를 벗어나면 그냥 거부한다.
@@ -205,6 +277,10 @@
     createPiece: createPiece,
     rotateCells: rotateCells,
     canPlace: canPlace,
+    lockPiece: lockPiece,
+    findFullRows: findFullRows,
+    clearRows: clearRows,
+    lockAndAdvance: lockAndAdvance,
     applyMove: applyMove,
     applyRotate: applyRotate,
     startGame: startGame

@@ -341,23 +341,6 @@
     assert(G.applyMove(state, 0, -1) === state, '같은 참조가 아니다');
   });
 
-  test('apply-move-down-lands', '바닥에서 아래로 가면 LANDED 가 되고 piece 참조는 그대로다', function () {
-    var base = G.startGame(G.createInitialState());
-    var piece = { type: 'I', cells: base.piece.cells, row: 18, col: 3 };
-    var state = { board: base.board, piece: piece, score: 0, lines: 0, status: 'PLAYING' };
-    var next = G.applyMove(state, 1, 0);
-    assert(next !== state, '같은 참조를 돌려줬다');
-    assert(next.status === 'LANDED', 'status=' + next.status);
-    assert(next.piece === piece, 'piece 참조가 바뀌었다');
-  });
-
-  test('apply-move-ignored-when-landed', 'LANDED 에서 이동은 인자 state 를 그대로 준다', function () {
-    var base = G.startGame(G.createInitialState());
-    var state = { board: base.board, piece: base.piece, score: 0, lines: 0, status: 'LANDED' };
-    assert(G.applyMove(state, 0, -1) === state, '왼쪽 이동이 상태를 바꿨다');
-    assert(G.applyMove(state, 1, 0) === state, '아래 이동이 상태를 바꿨다');
-  });
-
   test('apply-rotate-ok', '회전할 수 있으면 회전된 cells 를 가진 새 상태를 준다', function () {
     var state = G.startGame(G.createInitialState());
     var next = G.applyRotate(state);
@@ -374,25 +357,293 @@
     assert(G.applyRotate(state) === state, '같은 참조가 아니다');
   });
 
-  test('apply-rotate-ignored-when-landed', 'LANDED 에서 회전은 인자 state 를 그대로 준다', function () {
-    var base = G.startGame(G.createInitialState());
-    var state = { board: base.board, piece: base.piece, score: 0, lines: 0, status: 'LANDED' };
+  // ======================= SPEC_02 §7.3 — 신규 =======================
+
+  function emptyBoard() {
+    return G.createEmptyBoard();
+  }
+
+  function fillRow(board, row, from, to, type) {
+    for (var c = from; c <= to; c += 1) {
+      board[row][c] = type;
+    }
+    return board;
+  }
+
+  function occupied(board) {
+    var out = [];
+    for (var y = 0; y < board.length; y += 1) {
+      for (var x = 0; x < board[y].length; x += 1) {
+        if (board[y][x] !== 0) {
+          out.push([y, x, board[y][x]]);
+        }
+      }
+    }
+    return out;
+  }
+
+  function pieceCells(piece) {
+    var out = [];
+    for (var i = 0; i < piece.cells.length; i += 1) {
+      for (var j = 0; j < piece.cells[i].length; j += 1) {
+        if (piece.cells[i][j] !== 0) {
+          out.push([piece.row + i, piece.col + j]);
+        }
+      }
+    }
+    return out;
+  }
+
+  // 세로 I — 보드 열 9, 행 16~19
+  function verticalI() {
+    return { type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 };
+  }
+
+  function playing(board, piece, extra) {
+    var state = { board: board, piece: piece, score: 0, lines: 0, status: G.GAME_STATUS.PLAYING };
+    if (extra) {
+      for (var k in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, k)) {
+          state[k] = extra[k];
+        }
+      }
+    }
+    return state;
+  }
+
+  test('api-surface-spec02', 'SPEC_02 공개 API 가 모두 있다', function () {
+    var fns = ['lockPiece', 'findFullRows', 'clearRows', 'lockAndAdvance'];
+    for (var i = 0; i < fns.length; i += 1) {
+      assert(typeof G[fns[i]] === 'function', fns[i] + ' 가 함수가 아니다');
+    }
+  });
+
+  test('lock-piece-writes-type', '고정하면 채워진 칸에 종류 문자가 들어간다', function () {
+    var piece = G.createPiece('T');
+    var out = G.lockPiece(emptyBoard(), piece);
+    var cells = pieceCells(piece);
+    for (var i = 0; i < cells.length; i += 1) {
+      var v = out[cells[i][0]][cells[i][1]];
+      assert(v === 'T', '(' + cells[i][0] + ',' + cells[i][1] + ')=' + String(v));
+    }
+  });
+
+  test('lock-piece-pure', '고정은 원본 보드를 변형하지 않는다', function () {
+    var board = emptyBoard();
+    var before = J(board);
+    var out = G.lockPiece(board, G.createPiece('T'));
+    assert(J(board) === before, '원본이 변했다');
+    assert(out !== board, '같은 참조를 돌려줬다');
+    for (var y = 0; y < board.length; y += 1) {
+      assert(out[y] !== board[y], y + '행이 같은 참조다');
+    }
+  });
+
+  test('lock-piece-keeps-others', '기존 고정 셀은 그대로 남는다', function () {
+    var board = emptyBoard();
+    board[19][0] = 'O';
+    var out = G.lockPiece(board, G.createPiece('T'));
+    assert(out[19][0] === 'O', '(19,0)=' + String(out[19][0]));
+  });
+
+  test('lock-piece-cell-count', '빈 보드에 고정하면 0 이 아닌 셀이 4개다', function () {
+    for (var i = 0; i < G.PIECE_TYPES.length; i += 1) {
+      var t = G.PIECE_TYPES[i];
+      var out = G.lockPiece(emptyBoard(), G.createPiece(t));
+      assert(occupied(out).length === 4, t + ' 고정 셀 수=' + occupied(out).length);
+    }
+  });
+
+  test('find-full-rows-none', '빈 보드에는 완성 줄이 없다', function () {
+    assert(J(G.findFullRows(emptyBoard())) === J([]), '실제=' + J(G.findFullRows(emptyBoard())));
+  });
+
+  test('find-full-rows-single', '19행을 채우면 [19] 다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 9, 'O');
+    assert(J(G.findFullRows(board)) === J([19]), '실제=' + J(G.findFullRows(board)));
+  });
+
+  test('find-full-rows-multiple-ascending', '15행과 19행을 채우면 [15,19] 다', function () {
+    var board = emptyBoard();
+    fillRow(board, 19, 0, 9, 'O');
+    fillRow(board, 15, 0, 9, 'I');
+    assert(J(G.findFullRows(board)) === J([15, 19]), '실제=' + J(G.findFullRows(board)));
+  });
+
+  test('find-full-rows-ignores-partial', '9칸만 채운 행은 완성이 아니다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 8, 'O');
+    assert(J(G.findFullRows(board)) === J([]), '실제=' + J(G.findFullRows(board)));
+  });
+
+  test('find-full-rows-ignores-piece', '현재 블록이 메울 자리는 세지 않는다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 8, 'O');
+    var state = playing(board, { type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 });
+    assert(J(G.findFullRows(state.board)) === J([]), '보드만 봐야 하는데 실제=' + J(G.findFullRows(state.board)));
+  });
+
+  test('clear-rows-single', '한 줄 제거하면 위 행이 한 칸 내려온다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 9, 'O');
+    board[18][3] = 'I';
+    var out = G.clearRows(board, [19]);
+    assert(out[19][3] === 'I', '(19,3)=' + String(out[19][3]));
+    assert(J(out[18]) === J([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), '18행=' + J(out[18]));
+  });
+
+  test('clear-rows-multiple-simultaneous', '비인접 두 행을 한 번에 제거한다', function () {
+    var board = emptyBoard();
+    fillRow(board, 19, 0, 9, 'O');
+    fillRow(board, 15, 0, 9, 'I');
+    board[14][0] = 'J';
+    board[16][1] = 'S';
+    var out = G.clearRows(board, [15, 19]);
+    assert(out[16][0] === 'J', '14행 J 가 16행으로 안 갔다: ' + J(occupied(out)));
+    assert(out[17][1] === 'S', '16행 S 가 17행으로 안 갔다: ' + J(occupied(out)));
+    assert(occupied(out).length === 2, '남은 셀 수=' + occupied(out).length);
+  });
+
+  test('clear-rows-keeps-dimensions', '제거 후에도 20x10 이다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 9, 'O');
+    var out = G.clearRows(board, [19]);
+    assert(out.length === 20, '행 개수=' + out.length);
+    for (var y = 0; y < out.length; y += 1) {
+      assert(out[y].length === 10, y + '행 길이=' + out[y].length);
+    }
+  });
+
+  test('clear-rows-top-empty', '제거한 줄 수만큼 상단이 빈 행이다', function () {
+    var board = emptyBoard();
+    fillRow(board, 19, 0, 9, 'O');
+    fillRow(board, 15, 0, 9, 'I');
+    var out = G.clearRows(board, [15, 19]);
+    for (var y = 0; y < 2; y += 1) {
+      for (var x = 0; x < 10; x += 1) {
+        assert(out[y][x] === 0, '(' + y + ',' + x + ')=' + String(out[y][x]));
+      }
+    }
+  });
+
+  test('clear-rows-preserves-order', '남은 행의 셀 순서가 바뀌지 않는다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 9, 'O');
+    board[18] = ['I', 0, 'J', 0, 0, 'L', 0, 0, 0, 'S'];
+    var want = J(board[18]);
+    var out = G.clearRows(board, [19]);
+    assert(J(out[19]) === want, '실제=' + J(out[19]));
+  });
+
+  test('clear-rows-pure', '제거는 원본 보드를 변형하지 않는다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 9, 'O');
+    var before = J(board);
+    G.clearRows(board, [19]);
+    assert(J(board) === before, '원본이 변했다');
+  });
+
+  test('clear-rows-empty-list', '빈 배열을 주면 값은 같고 참조는 다르다', function () {
+    var board = fillRow(emptyBoard(), 19, 0, 8, 'O');
+    var out = G.clearRows(board, []);
+    assert(J(out) === J(board), '값이 달라졌다');
+    assert(out !== board, '같은 참조를 돌려줬다');
+  });
+
+  test('lock-and-advance-locks-and-spawns', '고정하고 다음 블록을 만든다', function () {
+    var state = playing(emptyBoard(), { type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 });
+    var next = G.lockAndAdvance(state);
+    assert(occupied(next.board).length === 4, '고정 셀 수=' + occupied(next.board).length);
+    assert(next.piece !== null && typeof next.piece === 'object', 'piece 가 없다');
+    assert(next.status === 'PLAYING', 'status=' + next.status);
+  });
+
+  test('lock-and-advance-lines-accumulate', '한 줄 제거 시 lines 가 1 증가한다', function () {
+    var state = playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { lines: 3 });
+    var next = G.lockAndAdvance(state);
+    assert(next.lines === 4, 'lines=' + next.lines);
+  });
+
+  test('lock-and-advance-multi-line-once', '두 줄 동시 제거 시 lines 가 2 증가한다', function () {
+    var board = emptyBoard();
+    fillRow(board, 18, 0, 8, 'O');
+    fillRow(board, 19, 0, 8, 'O');
+    var next = G.lockAndAdvance(playing(board, verticalI(), { lines: 3 }));
+    assert(next.lines === 5, 'lines=' + next.lines);
+    assert(occupied(next.board).length === 2, '남은 고정 셀=' + J(occupied(next.board)));
+  });
+
+  test('lock-and-advance-clears-before-spawn', '제거가 끝난 보드 위에 새 블록이 놓인다', function () {
+    var next = G.lockAndAdvance(playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI()));
+    assert(J(G.findFullRows(next.board)) === J([]), '완성 줄이 남아 있다: ' + J(G.findFullRows(next.board)));
+    assert(G.canPlace(next.board, next.piece) === true, '새 블록을 놓을 수 없는 보드다');
+  });
+
+  test('lock-and-advance-spawns-next-type', '새 블록은 순환의 다음 종류다', function () {
+    var state = playing(emptyBoard(), { type: 'T', cells: G.createPiece('T').cells, row: 18, col: 3 });
+    var next = G.lockAndAdvance(state);
+    assert(next.piece.type === G.nextPieceType('T'), 'type=' + next.piece.type);
+    assert(next.piece.type === 'S', 'T 다음이 S 가 아니다: ' + next.piece.type);
+  });
+
+  test('lock-and-advance-keeps-score', 'score 는 바뀌지 않는다', function () {
+    var state = playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { score: 42 });
+    assert(G.lockAndAdvance(state).score === 42, 'score=' + G.lockAndAdvance(state).score);
+  });
+
+  test('lock-and-advance-game-over', '생성 위치가 막히면 GAME_OVER 이고 piece 는 null 이다', function () {
+    var board = emptyBoard();
+    [0, 1, 2, 3].forEach(function (r) { fillRow(board, r, 0, 8, 'O'); });
+    var next = G.lockAndAdvance(playing(board, verticalI()));
+    assert(next.status === 'GAME_OVER', 'status=' + next.status);
+    assert(next.piece === null, 'piece=' + J(next.piece));
+  });
+
+  test('lock-and-advance-game-over-keeps-board', '게임오버여도 보드는 제거·압축까지 끝난 상태다', function () {
+    var board = emptyBoard();
+    [0, 1, 2, 3].forEach(function (r) { fillRow(board, r, 0, 8, 'O'); });
+    var piece = verticalI();
+    var expected = G.clearRows(G.lockPiece(board, piece), G.findFullRows(G.lockPiece(board, piece)));
+    var next = G.lockAndAdvance(playing(board, piece));
+    assert(J(next.board) === J(expected), '보드가 기대와 다르다');
+    assert(occupied(next.board).length === 4 * 9 + 4, '고정 셀 수=' + occupied(next.board).length);
+  });
+
+  test('lock-and-advance-ignored-when-not-playing', 'PLAYING 이 아니거나 piece 가 없으면 그대로 반환한다', function () {
+    var ready = G.createInitialState();
+    assert(G.lockAndAdvance(ready) === ready, 'READY 에서 상태가 바뀌었다');
+    var over = playing(emptyBoard(), null, { status: 'GAME_OVER' });
+    assert(G.lockAndAdvance(over) === over, 'GAME_OVER 에서 상태가 바뀌었다');
+    var noPiece = playing(emptyBoard(), null);
+    assert(G.lockAndAdvance(noPiece) === noPiece, 'piece 가 null 인데 상태가 바뀌었다');
+  });
+
+  test('apply-move-down-locks', '아래가 막히면 고정 처리 결과를 준다', function () {
+    var state = playing(emptyBoard(), verticalI());
+    var next = G.applyMove(state, 1, 0);
+    assert(next !== state, '같은 참조를 돌려줬다');
+    assert(next.status === 'PLAYING', 'status=' + next.status);
+    assert(occupied(next.board).length === 4, '고정 셀 수=' + occupied(next.board).length);
+    assert(next.piece && next.piece.type === 'O', '새 블록 type=' + (next.piece && next.piece.type));
+  });
+
+  test('apply-move-blocked-by-locked-cell', '옆이 고정 셀이면 이동이 거부된다', function () {
+    var board = emptyBoard();
+    board[1][2] = 'O';
+    var state = playing(board, G.createPiece('I'));
+    assert(G.applyMove(state, 0, -1) === state, '같은 참조가 아니다');
+  });
+
+  test('apply-rotate-blocked-by-locked-cell', '회전 결과가 고정 셀과 겹치면 거부된다', function () {
+    var board = emptyBoard();
+    board[2][4] = 'O';
+    var state = playing(board, G.createPiece('T'));
     assert(G.applyRotate(state) === state, '같은 참조가 아니다');
   });
 
-  test('landed-board-all-zero', 'LANDED 가 되어도 board 200칸이 전부 0 이다', function () {
-    var base = G.startGame(G.createInitialState());
-    var state = { board: base.board, piece: { type: 'I', cells: base.piece.cells, row: 18, col: 3 }, score: 0, lines: 0, status: 'PLAYING' };
-    var landed = G.applyMove(state, 1, 0);
-    assert(landed.status === 'LANDED', 'status=' + landed.status);
-    var count = 0;
-    for (var y = 0; y < landed.board.length; y += 1) {
-      for (var x = 0; x < landed.board[y].length; x += 1) {
-        assert(landed.board[y][x] === 0, '(' + y + ',' + x + ')=' + landed.board[y][x]);
-        count += 1;
-      }
-    }
-    assert(count === 200, '셀 개수=' + count);
+  test('apply-move-ignored-when-game-over', 'GAME_OVER 에서 이동은 그대로 반환한다', function () {
+    var state = playing(emptyBoard(), G.createPiece('I'), { status: 'GAME_OVER' });
+    assert(G.applyMove(state, 0, -1) === state, '왼쪽 이동이 상태를 바꿨다');
+    assert(G.applyMove(state, 1, 0) === state, '아래 이동이 상태를 바꿨다');
+  });
+
+  test('apply-rotate-ignored-when-game-over', 'GAME_OVER 에서 회전은 그대로 반환한다', function () {
+    var state = playing(emptyBoard(), G.createPiece('T'), { status: 'GAME_OVER' });
+    assert(G.applyRotate(state) === state, '같은 참조가 아니다');
   });
 
   // ======================= 결과 표시 =======================

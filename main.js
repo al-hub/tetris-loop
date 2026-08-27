@@ -27,7 +27,8 @@
       return;
     }
 
-    // 블록이 놓인 좌표를 먼저 모아 둔다. board 에는 쓰지 않는다 (SPEC_01 §5).
+    // 고정 셀은 board 값에서, 낙하 중인 블록은 piece 에서 온다.
+    // 화면에서는 둘을 합쳐 그리고 구분하지 않는다 (SPEC_02 §3.1).
     var occupied = {};
     if (piece) {
       for (var i = 0; i < piece.cells.length; i += 1) {
@@ -48,7 +49,8 @@
         var cellEl = document.createElement('div');
         cellEl.className = 'cell';
         cellEl.setAttribute('data-role', 'cell');
-        var type = occupied[y + ',' + x];
+        var locked = board[y][x];
+        var type = occupied[y + ',' + x] || (locked !== 0 ? locked : null);
         if (type) {
           cellEl.setAttribute('data-piece', type);
         }
@@ -89,6 +91,21 @@
 
   function getDropStats() {
     return { count: dropCount, lastAt: lastDropAt, intervalMs: dropIntervalMs };
+  }
+
+  // 앱 상태를 통째로 교체한다. 검증이 임의의 보드 모양을 만들 때 쓴다 (SPEC_02 §4.8).
+  // 타이머는 여기서도 최대 한 개다.
+  function loadState(state) {
+    if (!state) {
+      return;
+    }
+    appState = state;
+    render(appState);
+    if (appState.status === G.GAME_STATUS.PLAYING) {
+      startDropTimer();
+    } else {
+      stopDropTimer();
+    }
   }
 
   // 거부된 이동은 같은 참조로 돌아온다. 그때는 다시 그리지도 않는다.
@@ -149,7 +166,8 @@
     render: render,
     getActiveDropTimerCount: getActiveDropTimerCount,
     tick: tick,
-    getDropStats: getDropStats
+    getDropStats: getDropStats,
+    loadState: loadState
   };
 
   var startButton = document.querySelector('[data-role="start"]');

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TETRIS LOOP</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<script src="game.js" defer></script>
+<script src="main.js" defer></script>
+</head>
+<body>
+<h1>TETRIS LOOP</h1>
+<main>
+  <section class="board-area">
+    <div id="board" data-role="board"></div>
+    <button id="start-button" data-role="start">시작</button>
+  </section>
+  <aside class="panel">
+    <div class="stat"><span class="label">점수</span><span data-role="score">0</span></div>
+    <div class="stat"><span class="label">제거한 줄</span><span data-role="lines">0</span></div>
+    <div class="stat"><span class="label">게임 상태</span><span data-role="status">READY</span></div>
+    <p data-role="controls">← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지</p>
+  </aside>
+</main>
+</body>
+</html>

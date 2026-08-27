@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"print\\('py ok'\\)\")",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git init:*)",
+      "Bash(ls:*)",
+      "Bash(node -e:*)",
+      "Bash(date:*)"
+    ]
+  }
+}

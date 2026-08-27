@@ -1,0 +1,17 @@
+# 편집기 임시 파일
+.*.swp
+.*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 이 프로젝트는 패키지 매니저를 쓰지 않는다. 아래가 생기면 제약 위반이므로
+# 커밋되지 않게 막고, 검증(spec-verify 1·5번)에서 잡아낸다.
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 루프 이력은 산출물이다 — .loop/reports/ 와 .loop/state/ 는 커밋한다.

@@ -5,12 +5,12 @@
   "spec_revision": 1,
   "iteration": 0,
   "max_iterations": 3,
-  "status": "BLOCKED",
+  "status": "PASSED",
   "failure_signatures": [],
   "checklist": {
     "6-1_file_set_exact": "PASS(node-dom)",
     "6-2_no_install_no_external_url": "PASS(node-dom)",
-    "6-3_no_console_error": "UNKNOWN",
+    "6-3_no_console_error": "PASS",
     "6-4_initial_ready_snapshot": "PASS(node-dom)",
     "6-5_tests_fail0_pass78": "PASS",
     "6-6_render_merges_board_and_piece": "PASS(node-dom)",
@@ -20,16 +20,16 @@
     "6-10_no_landed_status": "PASS(node-dom)",
     "6-11_game_over_transition": "PASS(node-dom)",
     "6-12_game_over_ignores_keys": "PASS(node-dom)",
-    "6-13_game_over_pending_tick_harmless": "UNKNOWN",
+    "6-13_game_over_pending_tick_harmless": "PASS",
     "6-14_game_over_tick_call_harmless": "PASS(node-dom)",
     "6-15_lock_once_per_input": "PASS(node-dom)",
     "6-16_locked_cell_blocks_move": "PASS(node-dom)",
     "6-17_locked_cell_blocks_rotate": "PASS(node-dom)",
     "6-18_restart_resets": "PASS(node-dom)",
-    "6-19_restart_single_timer": "UNKNOWN",
-    "6-20_button_and_controls_text": "UNKNOWN"
+    "6-19_restart_single_timer": "PASS",
+    "6-20_button_and_controls_text": "PASS"
   },
   "last_report": ".loop/reports/SPEC_02-iter-0.md",
-  "human_input_needed": "브라우저 관측 3건 대기 — 6-3(콘솔 error) · 6-20(controls 문자 비교) · 6-13·6-19(콘솔 스니펫). 6-5 는 사람이 브라우저에서 PASS 79 / FAIL 0 확인했다.",
-  "updated_at": "2026-08-27T15:50:14+09:00"
+  "human_input_needed": null,
+  "updated_at": "2026-08-27T16:04:51+09:00"
 }

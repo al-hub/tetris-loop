@@ -6,39 +6,39 @@
 
 | 항목 | 값 |
 |------|-----|
-| 현재 SPEC | SPEC_05 rev1 (`SPEC_05_NEXT_PIECE.md`) |
-| 상태 | `PASSED` |
+| 현재 SPEC | SPEC_06 rev1 (`SPEC_06_PAUSE.md`) |
+| 상태 | `PENDING` |
 | 반복 | 0 / 3 |
-| 구현 | 완료 |
-| 마지막 리포트 | `.loop/reports/SPEC_05-iter-0.md` |
-| 갱신 시각 | 2026-08-27T17:19:16+09:00 |
+| 구현 | 시작 전 |
+| 마지막 리포트 | 없음 |
+| 갱신 시각 | 2026-08-27T17:27:55+09:00 |
 
-## 완료 조건 체크리스트 (SPEC_05 rev1 §6)
+## 완료 조건 체크리스트 (SPEC_06 rev1 §6)
 
 | # | 항목 | 결과 |
 |---|------|------|
-| 6-1 | 산출물 여섯 개 일치 | PASS |
-| 6-2 | 설치·외부 URL·네트워크 API 0건 | PASS |
-| 6-3 | 페이지 콘솔 error 0건 (사람 몫, 종합 제외) | PASS (사람) |
-| 6-4 | 테스트 FAIL 0 · PASS ≥149 · `initial-state-keys-five` 부재 | PASS (Node) |
-| 6-5 | 초기 상태 6키, `next` null | PASS (Node) |
-| 6-6 | `startGame` 공급자 2회 → (T,I) | PASS (Node) |
-| 6-7 | 순환 기본 시작 → (I,O) | PASS (Node) |
-| 6-8 | 브라우저 시작 후 NEXT 격자에 O | PASS (Node) |
-| 6-9 | `next-cell` 16개, READY 에서 비어 있음 | PASS (Node) |
-| 6-10 | 7종 중앙 배치 인덱스 일치 | PASS (Node) |
-| 6-11 | NEXT 색 = 보드 셀 색 | PASS (사람) |
-| 6-12 | 승격 시 공급 1회, next 보충 | PASS (Node) |
-| 6-13 | 승격 블록 좌표 = `createPiece` 규칙 | PASS (Node) |
-| 6-14 | [T,I,L,O,Z] 3회 굳힘 순서·calls 2·3·4·5 | PASS (Node) |
-| 6-15 | 공급자 인자 = 승격된 종류 | PASS (Node) |
-| 6-16 | `next: null` 은 순환 보충 | PASS (Node) |
-| 6-17 | 브라우저 굳힘 → 승격 + NEXT 갱신 | PASS (Node) |
-| 6-18 | 게임오버 시 next 유지·공급 0회 | PASS (Node) |
-| 6-19 | 브라우저 GAME_OVER 후 NEXT 불변 | PASS (Node) |
-| 6-20 | 재시작은 이전 next 무시 | PASS (Node) |
-| 6-21 | 리더보드 기록에 next 없음 | PASS (Node) |
-| 6-22 | next 변경이 board 를 안 건드림 | PASS (Node) |
+| 6-1 | 산출물 여섯 개 | — |
+| 6-2 | 설치·외부 URL·네트워크 0 | — |
+| 6-3 | 콘솔 error 0 (사람, 종합 제외) | — |
+| 6-4 | 테스트 FAIL 0 · PASS ≥166 | — |
+| 6-5 | PLAYING→PAUSED, 다섯 키 참조 동일 | — |
+| 6-6 | PAUSED→PLAYING, 참조 동일 | — |
+| 6-7 | READY·GAME_OVER 는 인자 그대로 | — |
+| 6-8 | 브라우저 네 상태 P 전이 + preventDefault | — |
+| 6-9 | P 진입 시 타이머 0, 블록 불변 | — |
+| 6-10 | PAUSED 에서 tick 5회 무해 | — |
+| 6-11 | 타이머 1 → P → 0 | — |
+| 6-12 | PAUSED 방향키 무시 + preventDefault | — |
+| 6-13 | PAUSED 중 시작 클릭 무시 | — |
+| 6-14 | 스냅샷 보존 후 재개 | — |
+| 6-15 | 재개 간격 580 (레벨 3) | — |
+| 6-16 | 재개 간격 700/520 (레벨 1/4) | — |
+| 6-17 | 재개 후 tick 한 칸 | — |
+| 6-18 | PAUSED 에서 저장 거부 | — |
+| 6-19 | 8회 토글 → PLAYING, 타이머 1 | — |
+| 6-20 | 7회 토글 → PAUSED, 타이머 0 | — |
+| 6-21 | 토글 후 tick 한 칸 | — |
+| 6-22 | 재시작이 PAUSED·타이머 정리 | — |
 
 `—` 미판정 · `PASS` · `FAIL` · `BLOCKED` · `사람 확인`
 
@@ -46,21 +46,23 @@
 
 | 반복 | 결과 | 실패 시그니처 | 리포트 |
 |------|------|---------------|--------|
-| 0 | PASSED — 22/22 | 없음 | `.loop/reports/SPEC_05-iter-0.md` |
+| (없음) | 아직 실행하지 않음 | — | — |
 
 ## 사람 확인 필요
 
-없음.
+없음. 결정 넷(`togglePause` 순수 함수 · PAUSED 중 preventDefault · 패널 값만 표시 · PAUSED 중 시작 무시) 확정. 근거 SPEC_06 §11.
 
 ## 다음 단계
 
-SPEC_05 완료. 다음은 `/spec-new` — 일시정지(`PAUSED`).
+```
+/loop /spec-loop
+```
 
 ## 정지 이력
 
 | 시각 | 상태 | 사유 |
 |------|------|------|
-| 2026-08-27T13:18:37+09:00 | BLOCKED | 브라우저 게이트 — 세션에 브라우저 도구 없음 |
+| 2026-08-27T13:18:37+09:00 | BLOCKED | 브라우저 도구 없음 |
 | (같은 세션) | BLOCKED | Chrome 확장 미연결 |
 | (같은 세션) | PASSED | SPEC_00 — 13/13 |
 | (같은 세션) | BLOCKED | SPEC_01 rev1 — 배경 탭 억제 + 신뢰 입력 미도달 |
@@ -69,6 +71,6 @@ SPEC_05 완료. 다음은 `/spec-new` — 일시정지(`PAUSED`).
 | (같은 세션) | PASSED | SPEC_02 — 20/20 |
 | (같은 세션) | BLOCKED | SPEC_03 — 브라우저 2건 대기 |
 | (같은 세션) | PASSED | SPEC_03 — 31/31 |
-| (같은 세션) | PASSED | SPEC_04 — 20/20, 반복 소비 0 |
-| 2026-08-27T17:12:22+09:00 | PENDING | SPEC_05 배선 완료, 구현 대기 |
-| 2026-08-27T17:19:16+09:00 | PASSED | SPEC_05 — 21/21, 반복 소비 0 |
+| (같은 세션) | PASSED | SPEC_04 — 20/20 |
+| (같은 세션) | PASSED | SPEC_05 — 22/22 |
+| 2026-08-27T17:27:55+09:00 | PENDING | SPEC_06 배선 완료, 구현 대기 |

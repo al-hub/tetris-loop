@@ -7,8 +7,8 @@
 
 ## 1. 지금 작업 중인 SPEC
 
-`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_05_NEXT_PIECE.md`.
-앞 SPEC 다섯(`SPEC_00` ~ `SPEC_04`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
+`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_06_PAUSE.md`.
+앞 SPEC 여섯(`SPEC_00` ~ `SPEC_05`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
 SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮고,
 SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조건 6-15·6-16·6-22 ·
 필수 테스트 4개를 덮고,
@@ -17,10 +17,12 @@ SPEC_03 §2 가 SPEC_02 §5 "점수 범위 밖" · §3.2 "score 는 내내 0" ·
 SPEC_04 §2 가 SPEC_01 `DROP_INTERVAL_MS` 의 의미(레벨 1 값으로 축소) · `intervalMs` 계약 ·
 완료 조건 6-9c · SPEC_03 §4.3 점수 가산(직전 레벨을 곱함)을 덮고,
 SPEC_05 §2 가 `startGame`(두 번 공급) · `lockAndAdvance` 5~7단계(NEXT 승격) · 상태 5키→6키 ·
-필수 테스트 `initial-state-keys-five` 를 덮는다.
+필수 테스트 `initial-state-keys-five` 를 덮고,
+SPEC_06 §2 가 SPEC_00 "PAUSED 미참조" · SPEC_01 §3.4 `preventDefault` 범위 · 버튼 표(`PAUSED` 행) ·
+타이머 규정을 덮는다.
 **SPEC 문서가 유일한 요구사항 출처다.** 이 CLAUDE.md 는 SPEC 을 대체하지 않고 제약만 고정한다.
 
-## 2. 산출물 제약 (SPEC_00 §2 ~ SPEC_05 §2)
+## 2. 산출물 제약 (SPEC_00 §2 ~ SPEC_06 §2)
 
 - 산출물은 정확히 이 여섯 개뿐이다.
   `index.html` · `style.css` · `game.js` · `main.js` · `test.html` · `test.js`
@@ -83,6 +85,13 @@ SPEC_05 §2 가 `startGame`(두 번 공급) · `lockAndAdvance` 5~7단계(NEXT �
 - **승격 시 공급자를 부르지 않는다.** `state.next` 를 그대로 `createPiece` 하고, 배치 가능할 때만
   그 뒤에 `supply(promotedType)` 한 번. 게임오버면 0번, `next` 도 그대로 둔다.
 - **NEXT 격자 셀은 `data-role="next-cell"` 이다.** `cell` 을 쓰면 SPEC_00 의 200개 조건이 깨진다.
+- **일시정지는 `togglePause(state)` 순수 함수다.** `PLAYING`↔`PAUSED` 만 바꾸고 다른 상태는 인자 그대로.
+  다섯 키는 같은 참조로 넘긴다. `applyMove`·`applyRotate`·`lockAndAdvance` 는 이미 `PLAYING` 아니면
+  거부하므로 `PAUSED` 를 위해 게임 규칙 함수를 고치지 않는다.
+- **타이머는 `status` 전이를 따른다.** `PLAYING` 이 되면(시작·재시작·재개·`loadState`) 기존 정지 후
+  현재 레벨 간격으로 하나. `PLAYING` 이 아니게 되면 정지. 재개 간격을 700 으로 되돌리지 않는다.
+- **`PAUSED` 중 방향키·`P` 는 `preventDefault` 하되 상태를 바꾸지 않는다.** `READY`·`GAME_OVER` 에서는
+  `preventDefault` 도 하지 않는다. `PAUSED` 중 `시작` 클릭은 무시.
 - 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
 - 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 

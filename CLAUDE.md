@@ -7,12 +7,15 @@
 
 ## 1. 지금 작업 중인 SPEC
 
-`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_01_FALLING_PIECE.md`.
-앞 SPEC(`SPEC_00_PROJECT.md`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다
-(SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮는다).
+`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_02_LOCK_AND_CLEAR.md`.
+앞 SPEC(`SPEC_00_PROJECT.md` · `SPEC_01_FALLING_PIECE.md`)은 통과했고,
+이후 SPEC 이 명시적으로 덮은 조항만 무효다.
+SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮고,
+SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조건 6-15·6-16·6-22 ·
+필수 테스트 4개를 덮는다.
 **SPEC 문서가 유일한 요구사항 출처다.** 이 CLAUDE.md 는 SPEC 을 대체하지 않고 제약만 고정한다.
 
-## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2)
+## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2)
 
 - 산출물은 정확히 이 여섯 개뿐이다.
   `index.html` · `style.css` · `game.js` · `main.js` · `test.html` · `test.js`
@@ -44,6 +47,16 @@
 - **키 리스너는 `window` 에 하나만 붙인다.** 재시작마다 새로 붙이면 입력이 중복 처리된다.
 - **색은 CSS 에만 있다.** `game.js` 는 블록 색을 모른다 — 색은 로직이 아니라 표현이다.
   블록 셀은 `data-piece="<종류 한 글자>"` 속성으로 표시하고 CSS 가 그 속성으로 색을 준다.
+- **고정 보드와 현재 블록은 상태에서 분리한다.** `state.board` 셀은 빈칸이면 숫자 `0`,
+  고정 셀이면 종류 한 글자다. 낙하 중인 블록은 `state.piece` 에만 있고 매 tick 마다
+  `board` 에 쓰지 않는다. 화면에서는 둘을 합쳐 그리되 DOM 에서 구분하지 않는다.
+- **고정 처리는 원자 함수 하나다.** `lockAndAdvance(state)` 가
+  고정 → 완성 줄 탐색 → 동시 제거 → 압축 → 줄 수 누적 → 다음 블록 생성 → 게임오버 판정을
+  이 순서로 한 번에 한다. 한 입력·한 tick 에서 두 번 호출하지 않는다.
+- **`LANDED` 는 지속 상태가 아니다.** `state.status` 값으로 쓰지 않는다.
+  `GAME_STATUS` 의 동결 5키는 그대로 둔다.
+- **`TetrisApp.loadState(state)` 는 검증이 임의 보드를 만드는 통로다.** 상태를 교체하고 다시 그리며,
+  `PLAYING` 이면 타이머를 하나만 다시 건다.
 - 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
 - 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 

@@ -7,18 +7,20 @@
 
 ## 1. 지금 작업 중인 SPEC
 
-`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_04_LEVEL_AND_SPEED.md`.
-앞 SPEC 넷(`SPEC_00` ~ `SPEC_03`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
+`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_05_NEXT_PIECE.md`.
+앞 SPEC 다섯(`SPEC_00` ~ `SPEC_04`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
 SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮고,
 SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조건 6-15·6-16·6-22 ·
 필수 테스트 4개를 덮고,
 SPEC_03 §2 가 SPEC_02 §5 "점수 범위 밖" · §3.2 "score 는 내내 0" · §4.4 score 불변 ·
 필수 테스트 `lock-and-advance-keeps-score` 를 덮고,
 SPEC_04 §2 가 SPEC_01 `DROP_INTERVAL_MS` 의 의미(레벨 1 값으로 축소) · `intervalMs` 계약 ·
-완료 조건 6-9c · SPEC_03 §4.3 점수 가산(직전 레벨을 곱함)을 덮는다.
+완료 조건 6-9c · SPEC_03 §4.3 점수 가산(직전 레벨을 곱함)을 덮고,
+SPEC_05 §2 가 `startGame`(두 번 공급) · `lockAndAdvance` 5~7단계(NEXT 승격) · 상태 5키→6키 ·
+필수 테스트 `initial-state-keys-five` 를 덮는다.
 **SPEC 문서가 유일한 요구사항 출처다.** 이 CLAUDE.md 는 SPEC 을 대체하지 않고 제약만 고정한다.
 
-## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2 · SPEC_03 §2 · SPEC_04 §2)
+## 2. 산출물 제약 (SPEC_00 §2 ~ SPEC_05 §2)
 
 - 산출물은 정확히 이 여섯 개뿐이다.
   `index.html` · `style.css` · `game.js` · `main.js` · `test.html` · `test.js`
@@ -74,6 +76,13 @@ SPEC_04 §2 가 SPEC_01 `DROP_INTERVAL_MS` 의 의미(레벨 1 값으로 축소)
   매 tick 마다 다시 걸면 간격이 리셋된다. 간격은 절대 100ms 미만이 되지 않는다.
 - **레벨 배수는 줄 제거 점수에만, 제거 직전 레벨로.** `scoreForLines(n) × levelForLines(state.lines)`.
   드롭 점수는 이 프로젝트에 없다 — 만들지 않는다.
+- **NEXT 는 `state.next` 에 종류 한 글자다.** piece 객체를 넣지 않는다. 모양은 `PIECE_SHAPES[next]`,
+  색은 CSS 가 종류에서 정하므로 "모양·색 일치" 는 저장 구조가 보장한다.
+- **블록 공급은 `startGame`·`lockAndAdvance` 의 선택 인자다.** 생략하면 `nextPieceType`(순환).
+  `main.js` 는 공급자를 넘기지 않는다 — 실게임은 늘 순환이다. 전역 공급자 교체를 만들지 않는다.
+- **승격 시 공급자를 부르지 않는다.** `state.next` 를 그대로 `createPiece` 하고, 배치 가능할 때만
+  그 뒤에 `supply(promotedType)` 한 번. 게임오버면 0번, `next` 도 그대로 둔다.
+- **NEXT 격자 셀은 `data-role="next-cell"` 이다.** `cell` 을 쓰면 SPEC_00 의 200개 조건이 깨진다.
 - 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
 - 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 

@@ -5,131 +5,114 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 # spec-verify — 검증 게이트
 
-**이 스킬의 유일한 일은 관측이다.** 코드를 고치지 않는다. 상태 파일을 쓰지 않는다.
-호출자에게 항목별 표를 돌려주는 것으로 끝난다.
+**관측만 한다.** 코드·상태 파일을 고치지 않는다. 항목별 표를 돌려주는 것으로 끝난다.
 
-현재 대상은 **SPEC_04 revision 1 (`SPEC_04_LEVEL_AND_SPEED.md`)** 이다.
+현재 대상은 **SPEC_05 revision 1 (`SPEC_05_NEXT_PIECE.md`)** 이다.
 
 ## 판정 규칙
 
-| 값 | 의미 |
-|----|------|
-| `PASS` | 직접 관측해 조건을 만족함 |
-| `FAIL` | 직접 관측해 조건을 만족하지 못함 |
-| `BLOCKED` | 관측 자체를 못 함 |
-
-**관측하지 못한 것을 `PASS` 로 적지 않는다.** 근거 열에는 실제로 본 값을 적는다.
+`PASS` 직접 관측해 만족 · `FAIL` 직접 관측해 불만족 · `BLOCKED` 관측 불가.
+**관측하지 못한 것을 `PASS` 로 적지 않는다.** 근거에는 실제로 본 값을 적는다.
 
 ## 단계 0 — 관측 채널
 
-SPEC_04 는 **시간에 기대는 조건이 없다.** 6-3(콘솔)을 뺀 19개는 순수 함수 호출 · `loadState` ·
-`tick()` · 합성 이벤트 · DOM 텍스트로 결정적으로 판정된다.
+SPEC_05 는 시간 의존 조건이 없다. 6-3(콘솔)을 뺀 21개는 공급자 인자를 넘긴 순수 함수 호출 ·
+`loadState` · 합성 이벤트 · DOM 으로 결정적으로 판정된다.
 
 | 채널 | 언제 | 무엇을 |
 |------|------|--------|
-| 브라우저 MCP 있음 | 기본 | 20개 전부 `http://localhost:8000` 에서 |
-| MCP 없음 | 사람이 직접 검증하기로 한 경우 | 6-1·6-2 파일시스템, 6-4~6-20 은 **Node 스텁**(scratchpad `run-tests.js` · DOM 스텁)으로. 6-3 은 사람 몫 |
+| 브라우저 MCP 있음 | 기본 | 22개 전부 `http://localhost:8000` |
+| MCP 없음 (사람 검증 결정) | 대안 | 6-1·6-2 파일시스템, 6-4~6-22 Node 스텁. 6-3 사람. **6-11 색은 Node 에서 `data-piece` 동일성으로 대체**하고 근거에 명시 |
 
-Node 채널로 관측한 항목은 근거에 `(Node DOM)` 을 붙인다.
-**6-3 은 루프의 종합 판정에서 제외한다** — `BLOCKED` 이 아니라 `사람 확인` 으로 적고,
-나머지 19개가 전부 `PASS` 면 종합 `PASSED` 로 낸다. 사람이 마지막에 콘솔을 한 번 본다 (SPEC_04 §6·§11).
+Node 관측은 근거에 `(Node DOM)`. **6-3 은 종합 판정에서 제외** — 21개 전부 `PASS` 면 `PASSED`.
 
-정적 서버·합성 디스패치·억제 주의사항은 앞 SPEC 과 같다 (`file://` 거부, `computer` 키 입력 미사용,
-숨은 탭 타이머 억제 — 이번엔 실측 조건이 없어 영향 없음).
-
-### 준비물 (SPEC_04 §6.0)
+### 준비물 (SPEC_05 §6.0)
 
 ```js
 const G = TetrisGame;
 const fill = (b, r, f, t, v) => { for (let c = f; c <= t; c += 1) b[r][c] = v; return b; };
-const verticalI = () => ({ type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 });
 const down = () => window.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown', cancelable:true, bubbles:true}));
-const oneLineAt = (lines, score) => {
-  TetrisApp.loadState({ board: fill(G.createEmptyBoard(), 19, 0, 8, 'O'), piece: verticalI(),
-                        score: score || 0, lines, status: 'PLAYING' });
-  down();
-};
-const twoLinesAt = (lines, score) => {
-  const b = G.createEmptyBoard(); fill(b, 18, 0, 8, 'O'); fill(b, 19, 0, 8, 'O');
-  TetrisApp.loadState({ board: b, piece: verticalI(), score: score || 0, lines, status: 'PLAYING' });
-  down();
-};
-const text = r => document.querySelector('[data-role="' + r + '"]').textContent;
-const minRow = () => Math.min(...[...document.querySelectorAll('[data-role="row"]')]
-  .flatMap((r, y) => [...r.children].some(c => c.hasAttribute('data-piece')) ? [y] : []));
+const nextCells = () => [...document.querySelectorAll('[data-role="next-cell"]')];
+const nextIdx = () => nextCells().map((c, i) => c.hasAttribute('data-piece') ? i : -1).filter(i => i >= 0);
+const nextTypes = () => [...new Set(nextCells().filter(c => c.hasAttribute('data-piece')).map(c => c.getAttribute('data-piece')))];
+const makeSupply = (queue) => { const s = (prev) => { s.calls += 1; s.args.push(prev); return queue.shift(); }; s.calls = 0; s.args = []; return s; };
+const bottomT = () => ({ type: 'T', cells: G.createPiece('T').cells, row: 18, col: 3 });
+const verticalI = () => ({ type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 });
+const NEXT_IDX = { I:[4,5,6,7], O:[5,6,9,10], T:[1,4,5,6], S:[1,2,4,5], Z:[0,1,5,6], J:[0,4,5,6], L:[2,4,5,6] };
+const playing = (b, p, ex) => Object.assign({ board: b, piece: p, next: null, score: 0, lines: 0, status: 'PLAYING' }, ex || {});
 ```
 
-## 단계 1 — 정적 검사
+## 단계 1 — 정적
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-1 | 산출물 집합 일치 | `ls -a` — 여섯 개 정확히. 하네스 파일은 세지 않는다 |
-| 6-2 | 설치·외부참조·서버통신 없음 | 설치 산출물 부재, 두 HTML 외부 URL 0건, 산출물 grep 에 `fetch(`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 0건 |
+| # | 조건 | 관측 |
+|---|------|------|
+| 6-1 | 산출물 6개 | `ls -a`, 하네스 파일 제외 |
+| 6-2 | 설치·외부 URL·`fetch(`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 0건 | grep |
 
-## 단계 2 — 러너와 콘솔
+## 단계 2 — 러너·콘솔
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-4 | 테스트 통과 | `data-fail`=`0`, `data-pass` ≥ `126`. SPEC_04 §7.3 20개 + 유지 106개 전부 존재. 폐기 0 |
-| 6-3 | 콘솔 오류 없음 | **사람 몫.** 로드 후 5초, `oneLineAt(9)` 한 번 뒤 5초까지 페이지가 만든 error 0건. 확장 주입 예외(`A listener indicated…`)는 세지 않는다. 종합 판정에서 제외 |
+| # | 조건 | 관측 |
+|---|------|------|
+| 6-4 | `data-fail` 0, `data-pass` ≥149, §7.3 24개 + 유지 125개 존재, `initial-state-keys-five` **부재** | 러너 DOM |
+| 6-3 | 로드 5초 → `시작` → `ArrowDown`×25 → ×25 → 5초, 페이지 error 0건 (확장 주입 제외) | **사람**, 종합 제외 |
 
-## 단계 3 — 레벨 계산 (그룹 A)
+## 단계 3 — 상태와 시작 (A)
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-5 | 경계 | `[0,9,10,19,20].map(G.levelForLines)` → `[1,1,2,2,3]` |
-| 6-6 | 상위·범위 밖 | `[29,30,99,100]` → `[3,4,10,11]`, `[-1,1.5,'10',null]` → 전부 `1` |
+| # | 관측 |
+|---|------|
+| 6-5 | `Object.keys(createInitialState()).sort()` → `board,lines,next,piece,score,status`, `next === null` |
+| 6-6 | `s=makeSupply(['T','I','L']); r=G.startGame(null,s)` → `r.piece.type` `T`, `r.next` `I`, `s.calls` **2** |
+| 6-7 | `G.startGame(G.createInitialState())` → `piece.type` `I`, `next` `O` |
+| 6-8 | 로드 → `[data-role="start"].click()` → 보드 `[data-piece]` 4개, `nextTypes()` `['O']`, `nextIdx()` `[5,6,9,10]` |
 
-## 단계 4 — 낙하 간격 (그룹 B)
+## 단계 4 — NEXT 표시 (B)
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-7 | 레벨 1~5 | `[1,2,3,4,5].map(G.dropIntervalForLevel)` → `[700,640,580,520,460]` |
-| 6-8 | 하한 | `[11,12,20,100,1000]` → 전부 `100` |
-| 6-9 | 상수 일치 | `G.dropIntervalForLevel(1) === G.DROP_INTERVAL_MS && G.DROP_INTERVAL_MS === 700` |
+| # | 관측 |
+|---|------|
+| 6-9 | `nextCells().length === 16`, 로드 직후 `nextIdx().length === 0` |
+| 6-10 | 7종 각각 `loadState(playing(빈, createPiece('I'), {next: t}))` → `nextIdx()` = `NEXT_IDX[t]`, `nextTypes()` = `[t]` |
+| 6-11 | 7종 각각 `loadState(playing(빈, createPiece(t), {next: t}))` → `getComputedStyle(next-cell[data-piece=t]).backgroundColor === getComputedStyle(cell[data-piece=t]).backgroundColor`. **Node 대체**: 두 셀의 `data-piece` 가 같은 값 `t` |
 
-## 단계 5 — 점수 배수 (그룹 C)
+## 단계 5 — 승격·보충 (C)
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-10 | 레벨 배수 | `oneLineAt(0)` → `score` `100`; `oneLineAt(10)` → `200`; `oneLineAt(20)` → `300` |
-| 6-11 | 직전 레벨 | `oneLineAt(9)` → `score` `100`, `lines` `10`, `level` `2`. `twoLinesAt(19)` → `600`, `lines` `21`, `level` `3`. `twoLinesAt(20)` → `900` |
-| 6-12 | 줄 제거 외 점수 없음 | `loadState({board: 빈, piece: createPiece('T'), score: 0, lines: 25, status: 'PLAYING'})` → `ArrowDown`·`ArrowLeft`·`ArrowRight`·`ArrowUp` 각 3회 → `score` `0` |
+| # | 관측 |
+|---|------|
+| 6-12 | `s=makeSupply(['L']); r=G.lockAndAdvance(playing(빈, bottomT(), {next:'I'}), s)` → `piece.type` `I`, `next` `L`, `calls` **1** |
+| 6-13 | 6-12 의 `r.piece` — `JSON(cells)===JSON(PIECE_SHAPES.I)`, `row 0`, `col 3` |
+| 6-14 | `s=makeSupply(['T','I','L','O','Z']); st=G.startGame(null,s)`; k=0..2: `N=st.piece.cells.length; st=G.lockAndAdvance({...st, piece:{...st.piece, row:18-(N-3), col:[0,3,7][k]}}, s)` → 궤적 `(T,I,2)(I,L,3)(L,O,4)(O,Z,5)`, `status` 내내 `PLAYING` |
+| 6-15 | 6-12 의 `s.args` → `['I']` (승격된 종류) |
+| 6-16 | `G.lockAndAdvance(playing(빈, bottomT(), {next:null}))` → `piece.type` `S`, `next` `Z` |
+| 6-17 | `loadState(playing(빈, bottomT(), {next:'J'}))` → `down()` → 보드 `[data-piece]` 8개(T 4 + J 4), `nextTypes()` `['L']`, `nextIdx()` `NEXT_IDX.L` |
 
-## 단계 6 — 레벨 전환과 타이머 (그룹 D)
+## 단계 6 — 게임오버 (D)
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-13 | 레벨 2 | `oneLineAt(9)` → `level` `2`, `getDropStats().intervalMs` `640`, `getActiveDropTimerCount()` `1` |
-| 6-14 | 레벨 3 | `oneLineAt(19)` → `level` `3`, `intervalMs` `580`, 타이머 `1` |
-| 6-15 | 같은 레벨 | `oneLineAt(0)` → `intervalMs` `700`, `level` `1` |
-| 6-16 | 연속 전환 | `oneLineAt(9)` → `oneLineAt(19)` → `oneLineAt(29)` → 타이머 `1`, `intervalMs` `520` |
-| 6-17 | tick 한 칸 | `oneLineAt(9)` → `minRow()` 와 `getDropStats().count` 기록 → `TetrisApp.tick()` → 둘 다 정확히 `+1` |
+| # | 관측 |
+|---|------|
+| 6-18 | `b=빈; [0,1,2,3].forEach(r=>fill(b,r,0,8,'O')); s=makeSupply(['O']); r=G.lockAndAdvance(playing(b, verticalI(), {next:'T'}), s)` → `status` `GAME_OVER`, `piece` `null`, `next` `'T'`, `calls` **0** |
+| 6-19 | 6-18 상태를 `loadState` → `down()` → `status` `GAME_OVER`. 네 방향키 + `TetrisApp.tick()`×3 후 `nextTypes()` `['T']`, `nextIdx()` `NEXT_IDX.T` 불변 |
 
-## 단계 7 — 재시작과 표시 (그룹 E)
+## 단계 7 — 재시작·리더보드·보드 (E)
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-18 | 재시작 | `loadState({board: 빈, piece: null, score: 0, lines: 37, status: 'GAME_OVER'})` → `level` `4`, 타이머 `0` 확인 → `[data-role="start"].click()` → `lines` `0`, `level` `1`, `intervalMs` `700`, 타이머 `1`, `status` `PLAYING` |
-| 6-19 | 라벨과 위치 | 로드 직후 `level` `1`, `[data-role="level"]` 의 이전 형제 `.label` 텍스트 `레벨`, 그 `.stat` 이 `게임 상태` `.stat` 의 다음 형제 |
-| 6-20 | 표시 일관성 | `lines` `0·9·10·25·100` 을 `loadState` 로 넣을 때마다 `Number(text('level')) === G.levelForLines(Number(text('lines')))` |
+| # | 관측 |
+|---|------|
+| 6-20 | `s=makeSupply(['S','Z']); r=G.startGame(playing(빈, createPiece('L'), {next:'O', status:'GAME_OVER'}), s)` → `(S,Z)`, `calls` 2. 브라우저: `GAME_OVER` 에서 `시작` 클릭 → `nextTypes()` 가 새 값 |
+| 6-21 | 게임오버 → `saveResult('민수')` → `Object.keys(JSON.parse(localStorage.getItem(KEY))[0]).sort()` = `clearedLines,id,name,playedAt,score` |
+| 6-22 | `loadState(playing(빈, createPiece('T'), {next:'I'}))` 의 보드 `data-piece` 분포 스냅샷 → `loadState(같은 상태, next:'L')` → 분포 동일, `[data-role="cell"]` 200개 |
 
 ## 반환 형식
 
 ```markdown
-## 검증 결과 — SPEC_04
+## 검증 결과 — SPEC_05
 
 | # | 항목 | 결과 | 근거 |
 |---|------|------|------|
-| 6-3 | 콘솔 오류 없음 | 사람 확인 | 종합 판정 제외 |
-| 6-13 | 레벨 2 | FAIL | intervalMs 700 (타이머를 다시 걸지 않음) |
-...
+| 6-3 | 콘솔 | 사람 확인 | 종합 제외 |
+| 6-12 | 승격 시 공급 1회 | FAIL | calls 2 (승격 전에 공급자를 불렀다) |
 
-- 종합: PASS 18 / FAIL 1 / BLOCKED 0 / 사람 확인 1
+- 종합: PASS 20 / FAIL 1 / BLOCKED 0 / 사람 확인 1
 - 판정: FAILED
-- 실패 시그니처: `main.js:timer-not-rescheduled-on-level-change`
+- 실패 시그니처: `game.js:supply-called-before-promotion`
 ```
 
-종합 판정: `BLOCKED` 하나라도 있으면 `BLOCKED`. 아니면 `FAIL` 하나라도 있으면 `FAILED`.
-19개(6-3 제외)가 전부 `PASS` 면 `PASSED`.
-실패 시그니처는 `<파일>:<증상>` 형태의 정규화된 짧은 문자열이다.
+종합: `BLOCKED` 있으면 `BLOCKED`, `FAIL` 있으면 `FAILED`, 21개 전부 `PASS` 면 `PASSED`.
+시그니처는 `<파일>:<증상>` 정규화 문자열.

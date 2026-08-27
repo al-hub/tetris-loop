@@ -61,7 +61,7 @@ DOM 스텁은 `setInterval`/`clearInterval` 도 흉내내 **실제 등록된 타
 
 ## 사람이 브라우저에서 확인한 것
 
-6-3 —  콘솔에 페이지가 만든 error 0건 (레벨 전환 후에도). PASS.
+6-3 — `http://localhost:8000/index.html` 콘솔에 페이지가 만든 error 0건 (레벨 전환 후에도). PASS.
 
 ## 다음 조치
 

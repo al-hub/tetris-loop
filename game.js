@@ -349,6 +349,31 @@
     return state;
   }
 
+  // PLAYING <-> PAUSED 만 바꾼다. 다른 상태는 인자 그대로. 다섯 키는 같은 참조 (SPEC_06 §4.2).
+  function togglePause(state) {
+    if (!state) {
+      return state;
+    }
+    if (state.status === GAME_STATUS.PLAYING) {
+      return withStatus(state, GAME_STATUS.PAUSED);
+    }
+    if (state.status === GAME_STATUS.PAUSED) {
+      return withStatus(state, GAME_STATUS.PLAYING);
+    }
+    return state;
+  }
+
+  function withStatus(state, status) {
+    return {
+      board: state.board,
+      piece: state.piece,
+      next: state.next,
+      score: state.score,
+      lines: state.lines,
+      status: status
+    };
+  }
+
   // 두 번 공급한다 — 첫 결과가 현재 블록, 둘째가 NEXT. 이전 게임의 next 는 쓰지 않는다 (SPEC_05 §4.4).
   function startGame(state, supply) {
     var pick = resolveSupply(supply);
@@ -405,6 +430,7 @@
     lockAndAdvance: lockAndAdvance,
     applyMove: applyMove,
     applyRotate: applyRotate,
+    togglePause: togglePause,
     startGame: startGame
   };
 })();

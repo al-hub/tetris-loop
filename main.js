@@ -208,13 +208,15 @@
       return;
     }
     var levelBefore = G.levelForLines(appState.lines);
+    var wasPlaying = appState.status === G.GAME_STATUS.PLAYING;
     appState = nextState;
     captureGameOver(appState);
     render(appState);
     if (appState.status !== G.GAME_STATUS.PLAYING) {
+      // PAUSED·GAME_OVER 어디로 가든 타이머는 멈춘다 (SPEC_06 §4.4).
       stopDropTimer();
-    } else if (G.levelForLines(appState.lines) !== levelBefore) {
-      // 레벨이 바뀔 때만 다시 건다. 매 tick 마다 걸면 간격이 리셋된다 (SPEC_04 §4.5).
+    } else if (!wasPlaying || G.levelForLines(appState.lines) !== levelBefore) {
+      // PLAYING 으로 들어올 때(재개)와 레벨이 바뀔 때만 다시 건다. 매 tick 마다 걸면 간격이 리셋된다.
       startDropTimer();
     }
   }
@@ -230,8 +232,8 @@
   }
 
   function onStartClick() {
-    if (appState.status === G.GAME_STATUS.PLAYING) {
-      return; // 진행 중에는 무시한다 (SPEC_01 §3.2).
+    if (appState.status === G.GAME_STATUS.PLAYING || appState.status === G.GAME_STATUS.PAUSED) {
+      return; // 진행 중·일시정지 중에는 무시한다 (SPEC_01 §3.2 · SPEC_06 §3.2).
     }
     appState = G.startGame(appState);
     resetSaveState();
@@ -257,7 +259,21 @@
   };
 
   function onKeyDown(event) {
-    if (appState.status !== G.GAME_STATUS.PLAYING) {
+    var playing = appState.status === G.GAME_STATUS.PLAYING;
+    var paused = appState.status === G.GAME_STATUS.PAUSED;
+    if (!playing && !paused) {
+      return; // READY·GAME_OVER 에서는 기본 동작도 빼앗지 않는다 (SPEC_06 §3.3).
+    }
+    if (event.key === 'p' || event.key === 'P') {
+      event.preventDefault();
+      commit(G.togglePause(appState));
+      return;
+    }
+    if (paused) {
+      // 일시정지 중 방향키는 무시하되 화면 스크롤은 막는다 (SPEC_06 §3.3).
+      if (event.key === 'ArrowUp' || MOVE_KEYS[event.key]) {
+        event.preventDefault();
+      }
       return;
     }
     if (event.key === 'ArrowUp') {

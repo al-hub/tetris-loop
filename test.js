@@ -1159,6 +1159,114 @@
     assert(Object.keys(rec).sort().join(',') === 'clearedLines,id,name,playedAt,score', '다섯 키');
   });
 
+  // ======================= SPEC_06 §7.3 — 신규 =======================
+
+  function pausedState(extra) {
+    return playingNext(emptyBoard(), G.createPiece('T'), 'S', Object.assign({ status: 'PAUSED' }, extra || {}));
+  }
+
+  function sameRefs(a, b) {
+    return ['board', 'piece', 'next', 'score', 'lines'].every(function (k) { return a[k] === b[k]; });
+  }
+
+  test('api-surface-spec06', 'togglePause 가 함수다', function () {
+    assert(typeof G.togglePause === 'function', 'togglePause 가 함수가 아니다');
+  });
+
+  test('toggle-pause-playing-to-paused', 'PLAYING → PAUSED', function () {
+    var r = G.togglePause(playingNext(emptyBoard(), G.createPiece('T'), 'S'));
+    assert(r.status === 'PAUSED', 'status=' + r.status);
+  });
+
+  test('toggle-pause-paused-to-playing', 'PAUSED → PLAYING', function () {
+    var r = G.togglePause(pausedState());
+    assert(r.status === 'PLAYING', 'status=' + r.status);
+  });
+
+  test('toggle-pause-ready-identity', 'READY 는 인자 그대로다', function () {
+    var st = G.createInitialState();
+    assert(G.togglePause(st) === st, '같은 참조가 아니다');
+  });
+
+  test('toggle-pause-game-over-identity', 'GAME_OVER 는 인자 그대로다', function () {
+    var st = playingNext(emptyBoard(), null, 'T', { status: 'GAME_OVER' });
+    assert(G.togglePause(st) === st, '같은 참조가 아니다');
+  });
+
+  test('toggle-pause-landed-identity', 'LANDED 는 인자 그대로다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'S', { status: 'LANDED' });
+    assert(G.togglePause(st) === st, '같은 참조가 아니다');
+  });
+
+  test('toggle-pause-null-identity', 'null·undefined 는 그대로이고 던지지 않는다', function () {
+    assert(G.togglePause(null) === null, 'null');
+    assert(G.togglePause(undefined) === undefined, 'undefined');
+  });
+
+  test('toggle-pause-keeps-references', '전이 결과의 다섯 키가 입력과 같은 참조다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'S', { score: 300, lines: 12 });
+    assert(sameRefs(G.togglePause(st), st), '참조가 달라졌다');
+    var back = G.togglePause(pausedState({ score: 300, lines: 12 }));
+    assert(sameRefs(back, pausedState({ score: 300, lines: 12 })) === false || back.status === 'PLAYING', 'PAUSED→PLAYING 도 상태만 바뀐다');
+  });
+
+  test('toggle-pause-round-trip', 'P·P 두 번이면 PLAYING 이고 참조가 그대로다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'S');
+    var r = G.togglePause(G.togglePause(st));
+    assert(r.status === 'PLAYING', 'status=' + r.status);
+    assert(sameRefs(r, st), '참조가 달라졌다');
+  });
+
+  test('apply-move-ignored-when-paused', 'PAUSED 에서 이동은 인자 그대로다', function () {
+    var st = pausedState();
+    assert(G.applyMove(st, 0, -1) === st && G.applyMove(st, 0, 1) === st && G.applyMove(st, 1, 0) === st, '상태가 바뀌었다');
+  });
+
+  test('apply-rotate-ignored-when-paused', 'PAUSED 에서 회전은 인자 그대로다', function () {
+    var st = pausedState();
+    assert(G.applyRotate(st) === st, '상태가 바뀌었다');
+  });
+
+  test('lock-and-advance-ignored-when-paused', 'PAUSED 에서 고정은 인자 그대로이고 공급자를 안 부른다', function () {
+    var st = pausedState();
+    var s = makeSupply(['O']);
+    assert(G.lockAndAdvance(st, s) === st, '상태가 바뀌었다');
+    assert(s.calls === 0, 'calls=' + s.calls);
+  });
+
+  test('paused-keeps-level', '전이 후 레벨이 같다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'S', { lines: 23 });
+    var r = G.togglePause(st);
+    assert(G.levelForLines(r.lines) === G.levelForLines(st.lines) && G.levelForLines(r.lines) === 3, '레벨=' + G.levelForLines(r.lines));
+  });
+
+  test('paused-keeps-next', '전이 후 next 가 같다', function () {
+    var st = playingNext(emptyBoard(), G.createPiece('T'), 'Z');
+    assert(G.togglePause(st).next === 'Z', 'next=' + G.togglePause(st).next);
+    assert(G.togglePause(G.togglePause(st)).next === 'Z', '왕복 후 next 가 달라졌다');
+  });
+
+  test('game-status-has-paused', 'GAME_STATUS.PAUSED 가 있고 동결·5키다', function () {
+    assert(G.GAME_STATUS.PAUSED === 'PAUSED', 'PAUSED=' + G.GAME_STATUS.PAUSED);
+    assert(Object.isFrozen(G.GAME_STATUS), '동결 아님');
+    assert(Object.keys(G.GAME_STATUS).length === 5, '키 수=' + Object.keys(G.GAME_STATUS).length);
+  });
+
+  test('pause-does-not-touch-board', '전이 전후 board 값이 같다', function () {
+    var st = playingNext(fillRow(emptyBoard(), 19, 0, 4, 'O'), G.createPiece('T'), 'S');
+    var before = J(st.board);
+    var r = G.togglePause(st);
+    assert(J(r.board) === before && r.board === st.board, 'board 가 변했다');
+  });
+
+  test('start-game-from-paused-resets', 'PAUSED 에서 startGame 은 새 게임이다', function () {
+    var st = pausedState({ lines: 37, score: 900 });
+    var r = G.startGame(st);
+    assert(r.status === 'PLAYING' && r.lines === 0 && r.score === 0, 'status/lines/score=' + r.status + '/' + r.lines + '/' + r.score);
+    assert(r.piece && typeof r.next === 'string', 'piece/next 가 준비되지 않았다');
+    assert(r.piece.type === G.nextPieceType('T'), '순환이 이전 piece 를 따르지 않았다');
+  });
+
   // ======================= 결과 표시 =======================
 
   var passCount = 0;

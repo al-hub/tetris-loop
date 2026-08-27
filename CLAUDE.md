@@ -7,15 +7,16 @@
 
 ## 1. 지금 작업 중인 SPEC
 
-`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_02_LOCK_AND_CLEAR.md`.
-앞 SPEC(`SPEC_00_PROJECT.md` · `SPEC_01_FALLING_PIECE.md`)은 통과했고,
-이후 SPEC 이 명시적으로 덮은 조항만 무효다.
+`.loop/state/progress.json` 의 `spec_file` 이 현재 SPEC 이다. 지금은 `SPEC_03_SCORE_AND_LEADERBOARD.md`.
+앞 SPEC 셋(`SPEC_00` · `SPEC_01` · `SPEC_02`)은 통과했고, 이후 SPEC 이 명시적으로 덮은 조항만 무효다.
 SPEC_01 §2 가 SPEC_00 §4.4 와 완료 조건 6-13 을 덮고,
 SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조건 6-15·6-16·6-22 ·
-필수 테스트 4개를 덮는다.
+필수 테스트 4개를 덮고,
+SPEC_03 §2 가 SPEC_02 §5 "점수 범위 밖" · §3.2 "score 는 내내 0" · §4.4 score 불변 ·
+필수 테스트 `lock-and-advance-keeps-score` 를 덮는다.
 **SPEC 문서가 유일한 요구사항 출처다.** 이 CLAUDE.md 는 SPEC 을 대체하지 않고 제약만 고정한다.
 
-## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2)
+## 2. 산출물 제약 (SPEC_00 §2 · SPEC_01 §2 · SPEC_02 §2 · SPEC_03 §2)
 
 - 산출물은 정확히 이 여섯 개뿐이다.
   `index.html` · `style.css` · `game.js` · `main.js` · `test.html` · `test.js`
@@ -57,6 +58,13 @@ SPEC_02 §2 가 SPEC_01 §4.5 규칙 3 · §5 "board 는 전부 0" · 완료 조
   `GAME_STATUS` 의 동결 5키는 그대로 둔다.
 - **`TetrisApp.loadState(state)` 는 검증이 임의 보드를 만드는 통로다.** 상태를 교체하고 다시 그리며,
   `PLAYING` 이면 타이머를 하나만 다시 건다.
+- **`localStorage` 는 `main.js` 만 만진다.** `game.js` 는 저장소를 모른다 — 이름 검증·정렬·
+  상위 10개 자르기·손상 데이터 정리는 전부 순수 함수로 `game.js` 에 두고, 읽기·쓰기와
+  `window.confirm` 은 `main.js` 가 한다.
+- **저장 키는 `tetris-loop.leaderboard.v1` 하나뿐이다.** 최상위 구조는 기록 객체의 배열이다.
+- **중복 저장 방지는 UI 가 아니라 로직이 한다.** 버튼 `disabled` 는 보조일 뿐이고
+  `TetrisApp.saveResult` 안에서 같은 게임의 두 번째 저장을 거부한다.
+- **서버와 통신하지 않는다.** `fetch`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 을 쓰지 않는다.
 - 스크립트는 classic script 로만 불러온다. `type="module"` 은 `file://` 에서 CORS 로 죽는다.
 - 검증이 DOM 을 세야 하므로 `data-role` 속성 계약(SPEC §3)을 지킨다.
 

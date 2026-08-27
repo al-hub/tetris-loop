@@ -8,9 +8,7 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 **이 스킬의 유일한 일은 관측이다.** 코드를 고치지 않는다. 상태 파일을 쓰지 않는다.
 발견한 문제를 고치고 싶어도 고치지 않는다 — 판정과 수정이 같은 손에 있으면 게이트가 무의미해진다.
 
-호출자에게 항목별 표를 돌려주는 것으로 끝난다.
-
-현재 대상은 **SPEC_02 revision 1 (`SPEC_02_LOCK_AND_CLEAR.md`)** 이다.
+현재 대상은 **SPEC_03 revision 1 (`SPEC_03_SCORE_AND_LEADERBOARD.md`)** 이다.
 
 ## 판정 규칙
 
@@ -20,166 +18,152 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 | `FAIL` | 직접 관측해 조건을 만족하지 못함 |
 | `BLOCKED` | 관측 자체를 못 함 (도구 없음, 페이지 로드 실패, 요소를 찾을 수 없음) |
 
-**관측하지 못한 것을 `PASS` 로 적지 않는다.** 코드를 읽어서 "이렇게 되어 있으니 될 것" 은
-`PASS` 가 아니다. 근거 열에는 추론이 아니라 실제로 본 값을 적는다.
+**관측하지 못한 것을 `PASS` 로 적지 않는다.** 근거 열에는 추론이 아니라 실제로 본 값을 적는다.
 
 ## 단계 0 — 도구 확인
 
-브라우저 도구(페이지 열기 · DOM 조회 · 콘솔 읽기 · JS 실행)가 없으면
-아래를 반환하고 즉시 끝낸다.
+브라우저 도구(페이지 열기 · DOM 조회 · 콘솔 읽기 · JS 실행)가 없으면 전 항목 `BLOCKED` 로
+끝낸다. 사유: `브라우저 도구 없음. claude --chrome 으로 세션을 다시 열어야 검증 가능.`
+`list_connected_browsers` 가 `[]` 여도 같다 (사유에 "Chrome 확장 미연결").
+파일시스템만으로 되는 항목도 이때는 판정하지 않는다.
 
-```
-전 항목 BLOCKED
-사유: 브라우저 도구 없음. `claude --chrome` 으로 세션을 다시 열어야 검증 가능.
-```
-
-도구가 목록에 있어도 `list_connected_browsers` 가 `[]` 면 확장이 붙지 않은 것이다.
-이때도 전 항목 `BLOCKED` 이고 사유에 "Chrome 확장 미연결" 을 적는다.
-
-파일시스템만으로 되는 항목(6-1·6-2)도 이때는 판정하지 않는다.
-부분 판정은 "일부 통과" 라는 잘못된 인상을 만든다.
+**브라우저 도구가 없고 사람이 직접 검증하기로 한 경우에만** 대안 채널을 쓸 수 있다.
+그때는 순수 로직을 Node 로 돌리고(가짜 DOM 스텁), 관측 경로를 리포트에 `PASS (Node DOM)` 처럼
+명시한다. CSS·실시간 타이머·콘솔·`localStorage` 는 그 채널로 증명되지 않으므로 사람에게 넘긴다.
 
 ## 단계 0.5 — 관측 채널
 
-### 정적 서버 경유
-
-**확장이 `file://` 스킴을 거부한다** (`Can't interact with browser-internal or unparseable URLs`).
+정적 서버를 프로젝트 루트에서 띄운다. `file://` 은 확장이 거부한다.
 
 ```bash
-python3 -m http.server 8123 --bind 127.0.0.1   # 프로젝트 루트에서, 백그라운드
+python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
-`http://localhost:8123/index.html` · `http://localhost:8123/test.html` 로 관측하고
-**검증이 끝나면 서버를 종료한다.** SPEC §2 의 `file://` 조항은 판정 대상이 아니다.
-
-### 입력은 합성 디스패치로 넣는다
-
-**`computer` 의 `key`·`left_click` 을 필수 조건에 쓰지 않는다.** 창이 최소화·가려짐이면
-도구가 "Clicked" 를 보고하면서 이벤트가 사라진다.
+입력은 **합성 디스패치**로 넣는다 (`computer` 의 실제 키·클릭은 창 상태에 좌우돼 조용히 사라진다).
 
 ```js
-window.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', cancelable: true, bubbles: true}));
-document.querySelector('[data-role="start"]').click();
+window.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown', cancelable:true, bubbles:true}));
+document.querySelector('[data-role="save"]').click();
 ```
 
-### 타이머 억제를 전제로 둔다
+숨은 탭은 `setInterval` 이 1000ms 로 조이고 5분 넘으면 더 심해진다. 타이밍이 걸린 항목은
+**페이지를 새로 로드한 직후**에 재고, 페이지 안 대기는 긴 `sleep` 한 번으로 한다.
 
-숨은 탭에서 `setInterval` 이 1000ms 로 조인다. **5분 넘게 숨어 있던 탭은 0회까지 떨어진다** —
-6-19 는 반드시 **페이지를 새로 로드한 직후**에 잰다. 평균 간격은 하한(630ms)만 본다.
-페이지 안 대기는 긴 `sleep` 한 번으로 한다. 짧은 폴링 루프는 CDP 45초 타임아웃을 낸다
-(`setTimeout` 도 1000ms 로 조여지기 때문).
-
-### 검증용 보드 (SPEC_02 §6.0)
-
-좌표를 바꾸면 기대값이 달라진다. 그대로 쓴다.
+### 준비물 (SPEC_03 §6.0)
 
 ```js
-const G = TetrisGame;
-const fill = (b, row, from, to, t) => { for (let c = from; c <= to; c += 1) b[row][c] = t; return b; };
-const verticalI = { type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 };  // 열 9, 행 16~19
-
-const A = {...G.createInitialState(), status: 'PLAYING', piece: verticalI,
-           board: fill(G.createEmptyBoard(), 19, 0, 8, 'O')};                       // 한 줄 완성 직전
-const B = (() => { const b = G.createEmptyBoard(); fill(b, 18, 0, 8, 'O'); fill(b, 19, 0, 8, 'O');
-                   return {...G.createInitialState(), status: 'PLAYING', piece: verticalI, board: b}; })();
-const C = (() => { const b = G.createEmptyBoard(); [0,1,2,3].forEach(r => fill(b, r, 0, 8, 'O'));
-                   return {...G.createInitialState(), status: 'PLAYING', piece: verticalI, board: b}; })();
+const G = TetrisGame, KEY = G.LEADERBOARD_KEY;
+const fill = (b, r, f, t, v) => { for (let c = f; c <= t; c += 1) b[r][c] = v; return b; };
+const verticalI = () => ({ type: 'I', cells: G.rotateCells(G.PIECE_SHAPES.I), row: 16, col: 7 });
+const boardA = () => fill(G.createEmptyBoard(), 19, 0, 8, 'O');                       // 한 줄 완성 직전
+const boardC = () => { const b = G.createEmptyBoard(); [0,1,2,3].forEach(r => fill(b, r, 0, 8, 'O')); return b; };
+const down = () => window.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown', cancelable:true, bubbles:true}));
+const makeGameOver = (score, lines) => {
+  TetrisApp.loadState({ board: boardC(), piece: verticalI(), score, lines, status: 'PLAYING' });
+  down();
+};
+const records = () => [...document.querySelectorAll('[data-role="record"]')].map(li => ({
+  rank: li.querySelector('[data-role="rank"]').textContent,
+  name: li.querySelector('[data-role="record-name"]').textContent,
+  score: li.querySelector('[data-role="record-score"]').textContent,
+  lines: li.querySelector('[data-role="record-lines"]').textContent
+}));
 ```
 
-`TetrisApp.loadState(state)` 로 넣는다. (다)는 **열 0~8 까지만** 채운다 — 10칸을 다 채우면
-완성 줄로 판정돼 제거되고 게임오버가 나지 않는다.
-
-점유 좌표는 `[data-piece]` 셀의 부모 행 인덱스와 행 안 인덱스로 읽는다.
+`localStorage` 는 직접 읽고 쓴다. `window.confirm` 은 임시로 바꿔 끼운다.
 
 ## 단계 1 — 정적 검사 (파일시스템)
 
-프로젝트 루트: `/home/al-hub/workspace/tetris-loop`
-
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-1 | 산출물 집합 일치 | `ls -a` — 여섯 개 정확히. 하네스 파일(`CLAUDE.md` `MEMORY.md` `SPEC_*.md` `docs/` `.claude/` `.loop/` `.git/` `.gitignore`)은 세지 않는다 |
-| 6-2 | 설치·외부참조 없음 | `package.json` · lockfile · `node_modules/` · 번들러/TS 설정 부재. 두 HTML grep 해 `http://` `https://` `//cdn` 0건 |
+| 6-1 | 산출물 집합 일치 | `ls -a` — 여섯 개 정확히. 하네스 파일은 세지 않는다 |
+| 6-2 | 설치·외부참조·서버통신 없음 | 설치 산출물 부재, 두 HTML 외부 URL 0건, 산출물 여섯 개 grep 에 `fetch(`·`XMLHttpRequest`·`WebSocket`·`sendBeacon` 0건 |
 
 ## 단계 2 — 브라우저 검사
 
-### 2a. `test.html`
+### 2a. 러너와 콘솔
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-5 | 테스트 통과 | `data-fail`=`0`, `data-pass` ≥ `78`. SPEC_02 §7.3 의 31개 + SPEC_00 §7.2 의 18개 + SPEC_01 유지 29개가 전부 있고, **폐기 4개**(`apply-move-down-lands`·`apply-move-ignored-when-landed`·`apply-rotate-ignored-when-landed`·`landed-board-all-zero`)는 **없어야** 한다 |
+| 6-4 | 테스트 통과 | `data-fail`=`0`, `data-pass` ≥ `105`. SPEC_03 §7.3 의 31개(28개 신규 포함)와 유지 77개가 전부 있고 **`lock-and-advance-keeps-score` 는 없어야** 한다 |
+| 6-3 | 콘솔 오류 없음 | 트래킹 `clear` 후 재로드 → 게임오버·저장·초기화를 한 바퀴 → 페이지가 만든 error 0건. 확장 주입 예외는 세지 않는다 (출처 `:0:0`, `test.html` 에서도 같은 문구, 산출물 grep 0건) |
 
-실패한 `<li>` 가 있으면 텍스트를 그대로 근거에 옮긴다.
-
-### 2b. 로드 직후 (`index.html`, 입력 없음)
-
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-3 | 콘솔 오류 없음 | 트래킹을 `clear: true` 로 비우고 다시 로드. 로드 후 5초, `시작` 후 5초까지 **페이지가 만든** error 0건. 확장 주입 예외(`A listener indicated an asynchronous response…`)는 세지 않는다 — 출처 `:0:0`, `test.html` 에서도 같은 문구, 산출물 grep 에 `chrome.*`·`sendMessage`·`async` 0건을 근거로 적는다 |
-| 6-4 | 초기 정지 상태 | `status`=`READY`, `[data-piece]` 0개, `score`=`0`, `lines`=`0`, 셀 200개, `getActiveDropTimerCount()`=`0`, `getDropStats().count`=`0` |
-
-### 2c. 렌더 합성
+### 2b. 점수 (그룹 A)
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-6 | 고정 + 현재 블록 | 19행 열 0~2 를 `'O'` 로 고정하고 `piece`=`createPiece('T')` 인 상태를 `loadState` → `[data-piece]` 셀 **정확히 7개**, 좌표 집합이 `{(19,0),(19,1),(19,2)}` ∪ `T` 점유 4칸 |
+| 6-5 | 점수표 | `SCORE_TABLE` 이 `[0,100,300,500,800]`, `Object.isFrozen` 참 |
+| 6-6 | 1줄 100 | 보드 (가) `loadState` → `ArrowDown` → `score`=`100`, `lines`=`1` |
+| 6-7 | 2줄 300 | 18·19행 열 0~8 고정 + 세로 I → `ArrowDown` → `score`=`300`, `lines`=`2` |
+| 6-8 | 누적 | `score` 500·`lines` 7 로 시작해 보드 (가) 한 줄 → `600` · `8` |
+| 6-9 | 게임오버 고정도 가산 | 19행 열 0~8 **와** 0~3행 열 0~8 고정 + 세로 I → `ArrowDown` → `GAME_OVER`, `score`=`100` |
 
-### 2d. 줄 제거
-
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-7 | 한 줄 제거 | 보드 (가) `loadState` → `ArrowDown` 1회 → `lines`=`1`, `status`=`PLAYING`, `[data-piece]` 7개(고정 3: 열 9 행 `{17,18,19}` + 새 블록 4) |
-| 6-8 | 두 줄 동시 제거 | 보드 (나) `loadState` → `ArrowDown` 1회 → `lines`=`2` |
-| 6-9 | 압축 결과 | 6-8 직후 열 9 의 고정 셀이 정확히 2개, 행 `{18,19}` |
-| 6-10 | `LANDED` 미노출 | 6-7·6-8 어느 경우에도 `[data-role="status"]` 가 `LANDED` 로 관측되지 않는다. 착지 직후 값은 `PLAYING` 또는 `GAME_OVER` |
-| 6-15 | 입력당 한 번 | 보드 (가)에서 `ArrowDown` 1회 → `lines` 증가량 정확히 `1`, `[data-piece]` 7개, 그중 행 `≤ 3` 인 셀이 정확히 4개 (두 번 돌았으면 8개이거나 `lines`=2) |
-
-### 2e. 게임오버
+### 2c. 표시와 시점 (그룹 B)
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-11 | 전이 | 보드 (다) `loadState` → `ArrowDown` 1회 → `status`=`GAME_OVER`, `getActiveDropTimerCount()`=`0`, `lines`=`0` |
-| 6-12 | 입력 무시 | 좌표·`lines`·`status`·`getDropStats().count` 스냅샷 → 네 방향키 → 전부 동일 |
-| 6-13 | 예약 tick 무해 | 6-12 의 네 값 스냅샷 → 2450ms 대기 → 전부 동일 |
-| 6-14 | `tick()` 직접 호출 무해 | `TetrisApp.tick()` 3회 → 네 값 전부 동일 |
+| 6-10 | READY 에서 숨김 | 로드 직후 `[data-role="gameover"]`.hidden 이 `true`, `[data-role="record"]` 수 = 저장된 유효 기록 수 |
+| 6-11 | PLAYING 에서 저장 거부 | hidden `true`, `TetrisApp.saveResult('민수')` 가 `{ok:false, reason:'NOT_GAME_OVER'}`, `localStorage` 문자열 불변 |
+| 6-12 | 게임오버 표시 | hidden `false`, `[data-role="final-score"]`·`[data-role="final-lines"]` 가 그 게임 최종값, 입력란·저장 버튼 존재 |
+| 6-13 | 문구 | `기록 저장` · `리더보드 초기화` · `리더보드` 문자 단위 일치 |
 
-### 2f. 고정 셀 충돌
+### 2d. 이름 검증
 
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-16 | 이동 차단 | `board[1][2]='O'`, `piece`=`createPiece('I')` 상태 `loadState` → `ArrowLeft` → `[data-piece]` 좌표 집합 불변 |
-| 6-17 | 회전 차단 | `board[2][4]='O'`, `piece`=`createPiece('T')` 상태 `loadState` → `ArrowUp` → 좌표 집합 불변 |
-
-### 2g. 재시작과 버튼
+각 항목마다 저장 전후 `localStorage` 문자열과 기록 수를 함께 본다.
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-18 | 재시작 초기화 | `GAME_OVER` 에서 `버튼.click()` → `status`=`PLAYING`, `[data-piece]` 정확히 4개(고정 0), `lines`=`0`, `score`=`0`, 타이머 `1` |
-| 6-19 | 타이머 하나 | **새 로드 직후** `GAME_OVER` → `시작` 두 번 반복 → 타이머 `1`, 2450ms 대기 시 평균 간격 `(Δlast)/(Δcount)` ≥630ms. `Δcount`=`0` 이면 `BLOCKED` |
-| 6-20 | 버튼·안내 문구 | `READY`·`PLAYING`·`GAME_OVER` 세 상태에서 `[data-role="start"]` 텍스트가 `시작`, `[data-role="controls"]` 가 아래와 문자 단위로 일치<br>`← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지` |
+| 6-14 | trim | `'  민수  '` 저장 → `ok`, 저장된 `name` 이 정확히 `민수` |
+| 6-15 | 너무 짧음 | `'민'` → `reason` `TOO_SHORT`, 오류 문구 `이름은 2자 이상이어야 합니다`, 기록 불변 |
+| 6-16 | 너무 김 | 11자 → `TOO_LONG`, `이름은 10자 이하여야 합니다`, 기록 불변 |
+| 6-17 | 경계 통과 | `'민수'`(2자)·10자 한글 각각 저장 성공 |
+| 6-18 | 허용 안 되는 문자 | `'김 민수'`·`'Player!'`·`'민수🎮'` 셋 다 `INVALID_CHAR`, `한글·영문·숫자만 쓸 수 있습니다`, 기록 불변 |
+| 6-19 | 영문·숫자·한글 | `'Player1'`·`'테트리스7'` 저장 성공 |
+| 6-20 | 실패는 저장소를 안 건드림 | 실패 직전/직후 `localStorage.getItem(KEY)` 문자열 동일, 이어서 올바른 이름으로 저장하면 성공 |
 
-### 2h. 선택 관측 — 판정에 넣지 않는다
+### 2e. 중복 저장과 재시작
 
-`document.visibilityState === 'visible'` 이고 실제 키·클릭이 `isTrusted: true` 로 도달할 때만
-시도한다. 실패하면 조용히 넘어간다 — **`FAIL` 로 적지 않는다.**
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-21 | 중복 차단 | 저장 성공 후 `saveResult` 3회 → 전부 `ALREADY_SAVED`, 기록 수 불변. 저장 버튼 5연타 → 기록 수 불변 |
+| 6-22 | 새 게임은 다시 저장 가능 | `시작` → 게임오버 → `isSavedForCurrentGame()`=`false`, 저장 성공 |
+
+### 2f. 저장 구조와 정렬
+
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-23 | 키와 필드 | 쓰인 키가 `tetris-loop.leaderboard.v1`, 기록에 5키 존재, 타입 `string·string·number·number·number` |
+| 6-24 | 점수→시각 정렬 | `100`·`300(T2)`·`300(T3)` 주입 후 새로고침 → 표시 순서 `300(T2)`·`300(T3)`·`100` |
+| 6-25 | 안정 정렬 | `score`·`playedAt` 동일한 둘 → 배열에서 앞이 화면에서도 앞 |
+| 6-26 | 상위 10개 | 11개 → 배열 길이 `10`, `[data-role="record"]` `10`개, 잘린 건 최저점(동점이면 가장 늦은) |
+| 6-27 | 최고점 삽입 | 10개 찬 상태에서 최고점 저장 → 1위, 기존 최하위 사라짐, 길이 `10` |
+| 6-28 | 새로고침 유지 | 새로고침 전후 개수·순서·이름·점수 동일 |
+
+### 2g. 손상 데이터와 초기화
+
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-29 | 손상 JSON | `setItem(KEY,'{broken json')` → 새로고침 → 콘솔 error 0건, 기록 0개, **저장값은 `{broken json` 그대로** |
+| 6-30 | 구조 불량 | `null` · `"문자열"` · `{"a":1}` · 필수 필드 빠진 항목이 섞인 배열 — 네 경우 각각 새로고침 → 정상 실행, 유효 항목만 표시, 콘솔 error 0건 |
+| 6-31 | 초기화 확인 | `window.confirm=()=>false` 로 클릭 → 저장값·화면 불변. `()=>true` 로 클릭 → 저장값 `[]`, 기록 0개. 재시작해도 리더보드 불변 |
 
 ## 반환 형식
 
 ```markdown
-## 검증 결과 — SPEC_02
+## 검증 결과 — SPEC_03
 
 | # | 항목 | 결과 | 근거 |
 |---|------|------|------|
 | 6-1 | 산출물 집합 일치 | PASS | ls 결과 정확히 6개 |
-| 6-8 | 두 줄 동시 제거 | FAIL | lines 가 1 (한 줄씩 제거로 보임) |
+| 6-7 | 2줄 300 | FAIL | score 가 200 (줄당 100 으로 계산) |
 ...
 
-- 종합: PASS 18 / FAIL 1 / BLOCKED 1
+- 종합: PASS 29 / FAIL 1 / BLOCKED 1
 - 판정: FAILED
-- 실패 시그니처: `game.js:sequential-row-clear`
-- 선택 관측: 건너뜀 (visibilityState=hidden)
+- 실패 시그니처: `game.js:score-per-line-not-table`
 ```
 
-종합 판정 규칙: `BLOCKED` 이 하나라도 있으면 `BLOCKED`. 아니면 `FAIL` 이 하나라도 있으면 `FAILED`.
-전부 `PASS` 여야 `PASSED`. 선택 관측은 종합 판정에 넣지 않는다.
+종합 판정: `BLOCKED` 하나라도 있으면 `BLOCKED`. 아니면 `FAIL` 하나라도 있으면 `FAILED`.
+전부 `PASS` 여야 `PASSED`.
 
 실패 시그니처는 **정규화된 짧은 문자열**이어야 한다 (`<파일>:<증상>`, 타임스탬프·가변 수치 금지).

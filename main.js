@@ -117,6 +117,7 @@
     setText('score', state.score);
     setText('lines', state.lines);
     setText('status', state.status);
+    setText('level', G.levelForLines(state.lines));
     renderGameOver(state);
     renderLeaderboard();
   }
@@ -132,6 +133,8 @@
   // 콜백은 tick 하나만 호출한다. 자동 낙하가 두 경로로 갈리지 않게.
   function startDropTimer() {
     stopDropTimer();
+    // 간격은 현재 레벨에서 나온다. 700 은 레벨 1 의 값일 뿐이다 (SPEC_04 §4.5).
+    dropIntervalMs = G.dropIntervalForLevel(G.levelForLines(appState.lines));
     dropTimerId = setInterval(tick, dropIntervalMs);
   }
 
@@ -176,11 +179,15 @@
     if (nextState === appState) {
       return;
     }
+    var levelBefore = G.levelForLines(appState.lines);
     appState = nextState;
     captureGameOver(appState);
     render(appState);
     if (appState.status !== G.GAME_STATUS.PLAYING) {
       stopDropTimer();
+    } else if (G.levelForLines(appState.lines) !== levelBefore) {
+      // 레벨이 바뀔 때만 다시 건다. 매 tick 마다 걸면 간격이 리셋된다 (SPEC_04 §4.5).
+      startDropTimer();
     }
   }
 

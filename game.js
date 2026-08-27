@@ -102,6 +102,22 @@
     return out;
   }
 
+  // 레벨은 저장하지 않는다. 누적 줄 수에서 매번 파생한다 (SPEC_04 §4.2).
+  function levelForLines(lines) {
+    if (typeof lines !== 'number' || !Number.isInteger(lines) || lines < 0) {
+      return 1;
+    }
+    return Math.floor(lines / 10) + 1;
+  }
+
+  // max(100, 700 - (level-1)*60). 어떤 레벨에서도 100 아래로 내려가지 않는다 (SPEC_04 §4.3).
+  function dropIntervalForLevel(level) {
+    if (typeof level !== 'number' || !Number.isInteger(level) || level < 1) {
+      return DROP_INTERVAL_MS;
+    }
+    return Math.max(100, DROP_INTERVAL_MS - (level - 1) * 60);
+  }
+
   // 범위 밖 입력은 던지지 않고 0 을 준다 — 여기서 던지면 lockAndAdvance 가 게임을 죽인다.
   function scoreForLines(count) {
     if (typeof count !== 'number' || !Number.isInteger(count)) {
@@ -289,7 +305,8 @@
     var full = findFullRows(locked);
     var cleared = clearRows(locked, full);
     var lines = state.lines + full.length;
-    var score = state.score + scoreForLines(full.length);
+    // 제거 직전 레벨을 곱한다. 갱신된 레벨은 다음 줄 제거부터 (SPEC_04 §4.4).
+    var score = state.score + scoreForLines(full.length) * levelForLines(state.lines);
     var next = createPiece(nextPieceType(state.piece.type));
     var placeable = canPlace(cleared, next);
     return {
@@ -351,6 +368,8 @@
     LEADERBOARD_KEY: LEADERBOARD_KEY,
     LEADERBOARD_LIMIT: LEADERBOARD_LIMIT,
     scoreForLines: scoreForLines,
+    levelForLines: levelForLines,
+    dropIntervalForLevel: dropIntervalForLevel,
     validateName: validateName,
     sanitizeRecords: sanitizeRecords,
     sortRecords: sortRecords,

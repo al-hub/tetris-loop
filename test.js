@@ -847,6 +847,140 @@
     assert(ids(base) === before, '원본이 변했다');
   });
 
+  // ======================= SPEC_04 §7.3 — 신규 =======================
+
+  function oneLineState(lines, score) {
+    return playing(fillRow(emptyBoard(), 19, 0, 8, 'O'), verticalI(), { lines: lines, score: score || 0 });
+  }
+
+  function twoLineState(lines, score) {
+    var board = emptyBoard();
+    fillRow(board, 18, 0, 8, 'O');
+    fillRow(board, 19, 0, 8, 'O');
+    return playing(board, verticalI(), { lines: lines, score: score || 0 });
+  }
+
+  function fourLineState(lines, score) {
+    var board = emptyBoard();
+    [16, 17, 18, 19].forEach(function (r) { fillRow(board, r, 0, 8, 'O'); });
+    return playing(board, verticalI(), { lines: lines, score: score || 0 });
+  }
+
+  test('api-surface-spec04', 'SPEC_04 공개 API 가 모두 있다', function () {
+    assert(typeof G.levelForLines === 'function', 'levelForLines 가 함수가 아니다');
+    assert(typeof G.dropIntervalForLevel === 'function', 'dropIntervalForLevel 이 함수가 아니다');
+  });
+
+  test('level-for-lines-boundaries', '0·9·10·19·20 이 1·1·2·2·3 이다', function () {
+    var got = [0, 9, 10, 19, 20].map(G.levelForLines);
+    assert(J(got) === J([1, 1, 2, 2, 3]), '실제=' + J(got));
+  });
+
+  test('level-for-lines-higher', '29·30·99·100 이 3·4·10·11 이다', function () {
+    var got = [29, 30, 99, 100].map(G.levelForLines);
+    assert(J(got) === J([3, 4, 10, 11]), '실제=' + J(got));
+  });
+
+  test('level-for-lines-invalid', '범위 밖 입력은 전부 1 이다', function () {
+    var inputs = [-1, 1.5, '10', null, undefined, NaN];
+    for (var i = 0; i < inputs.length; i += 1) {
+      assert(G.levelForLines(inputs[i]) === 1, String(inputs[i]) + ' → ' + G.levelForLines(inputs[i]));
+    }
+  });
+
+  test('level-for-lines-formula', '0~50 전 구간에서 floor(n/10)+1 과 같다', function () {
+    for (var n = 0; n <= 50; n += 1) {
+      assert(G.levelForLines(n) === Math.floor(n / 10) + 1, n + ' → ' + G.levelForLines(n));
+    }
+  });
+
+  test('drop-interval-levels-1-to-5', '레벨 1~5 가 700·640·580·520·460 이다', function () {
+    var got = [1, 2, 3, 4, 5].map(G.dropIntervalForLevel);
+    assert(J(got) === J([700, 640, 580, 520, 460]), '실제=' + J(got));
+  });
+
+  test('drop-interval-level-11-exact-100', '레벨 11 은 계산값이 정확히 100 이다', function () {
+    assert(G.dropIntervalForLevel(11) === 100, '실제=' + G.dropIntervalForLevel(11));
+    assert(700 - 10 * 60 === 100, '계산값 확인');
+  });
+
+  test('drop-interval-floor-100', '12·20·100·1000 은 전부 100 이다', function () {
+    var got = [12, 20, 100, 1000].map(G.dropIntervalForLevel);
+    assert(J(got) === J([100, 100, 100, 100]), '실제=' + J(got));
+  });
+
+  test('drop-interval-never-below-100', '레벨 1~200 에서 항상 100 이상이다', function () {
+    for (var l = 1; l <= 200; l += 1) {
+      assert(G.dropIntervalForLevel(l) >= 100, '레벨 ' + l + ' → ' + G.dropIntervalForLevel(l));
+    }
+  });
+
+  test('drop-interval-invalid', '범위 밖 레벨은 전부 700 이다', function () {
+    var inputs = [0, -1, 1.5, '2', null, undefined];
+    for (var i = 0; i < inputs.length; i += 1) {
+      assert(G.dropIntervalForLevel(inputs[i]) === 700, String(inputs[i]) + ' → ' + G.dropIntervalForLevel(inputs[i]));
+    }
+  });
+
+  test('drop-interval-level-1-equals-constant', '레벨 1 간격이 DROP_INTERVAL_MS 와 같다', function () {
+    assert(G.dropIntervalForLevel(1) === G.DROP_INTERVAL_MS, G.dropIntervalForLevel(1) + ' !== ' + G.DROP_INTERVAL_MS);
+    assert(G.DROP_INTERVAL_MS === 700, 'DROP_INTERVAL_MS=' + G.DROP_INTERVAL_MS);
+  });
+
+  test('lock-and-advance-multiplies-by-level', 'lines 0·10·20 에서 한 줄이 100·200·300 이다', function () {
+    var got = [0, 10, 20].map(function (n) { return G.lockAndAdvance(oneLineState(n)).score; });
+    assert(J(got) === J([100, 200, 300]), '실제=' + J(got));
+  });
+
+  test('lock-and-advance-uses-level-before-clear', 'lines 9 에서 한 줄은 레벨 1 배수다', function () {
+    var next = G.lockAndAdvance(oneLineState(9));
+    assert(next.score === 100, 'score=' + next.score + ' (레벨 2 를 곱했다면 200)');
+    assert(next.lines === 10, 'lines=' + next.lines);
+    assert(G.levelForLines(next.lines) === 2, '새 레벨=' + G.levelForLines(next.lines));
+  });
+
+  test('lock-and-advance-boundary-19-to-21', 'lines 19 에서 두 줄은 300×2=600 이다', function () {
+    var next = G.lockAndAdvance(twoLineState(19));
+    assert(next.score === 600, 'score=' + next.score);
+    assert(next.lines === 21, 'lines=' + next.lines);
+  });
+
+  test('lock-and-advance-boundary-20', 'lines 20 에서 두 줄은 300×3=900 이다', function () {
+    var next = G.lockAndAdvance(twoLineState(20));
+    assert(next.score === 900, 'score=' + next.score);
+  });
+
+  test('lock-and-advance-multiplier-once', 'lines 10 에서 한 줄은 정확히 200 이다', function () {
+    var next = G.lockAndAdvance(oneLineState(10));
+    assert(next.score === 200, 'score=' + next.score + ' (400 이면 배수 중복)');
+  });
+
+  test('lock-and-advance-four-lines-at-9', 'lines 9 에서 네 줄은 800×1=800 이다', function () {
+    var next = G.lockAndAdvance(fourLineState(9));
+    assert(next.lines === 13, 'lines=' + next.lines);
+    assert(next.score === 800, 'score=' + next.score);
+  });
+
+  test('move-and-rotate-do-not-score', '이동·회전으로는 점수가 오르지 않는다', function () {
+    var state = playing(emptyBoard(), G.createPiece('T'), { lines: 25, score: 0 });
+    var s = state;
+    s = G.applyMove(s, 0, -1); s = G.applyMove(s, 0, 1); s = G.applyMove(s, 1, 0); s = G.applyRotate(s);
+    s = G.applyMove(s, 1, 0); s = G.applyRotate(s);
+    assert(s.score === 0, 'score=' + s.score);
+    assert(s.status === 'PLAYING', 'status=' + s.status);
+  });
+
+  test('start-game-resets-lines-to-zero', 'lines 37 에서 startGame 하면 lines 0 · 레벨 1 이다', function () {
+    var next = G.startGame(playing(emptyBoard(), null, { lines: 37, score: 999, status: 'GAME_OVER' }));
+    assert(next.lines === 0, 'lines=' + next.lines);
+    assert(G.levelForLines(next.lines) === 1, '레벨=' + G.levelForLines(next.lines));
+    assert(next.score === 0, 'score=' + next.score);
+  });
+
+  test('score-table-unchanged', 'SCORE_TABLE 이 그대로다', function () {
+    assert(J(G.SCORE_TABLE) === J([0, 100, 300, 500, 800]), '실제=' + J(G.SCORE_TABLE));
+  });
+
   // ======================= 결과 표시 =======================
 
   var passCount = 0;

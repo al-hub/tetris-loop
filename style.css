@@ -76,6 +76,16 @@ main {
   background: var(--cell-bg);
 }
 
+/* 블록 색. game.js 는 색을 모른다 — 색은 표현이므로 CSS 에만 있다 (SPEC_01 §3.1).
+   .cell 과 명시도가 같으므로 반드시 .cell 보다 뒤에 와야 한다. */
+[data-piece="I"] { background: #22d3ee; }
+[data-piece="O"] { background: #facc15; }
+[data-piece="T"] { background: #a855f7; }
+[data-piece="S"] { background: #22c55e; }
+[data-piece="Z"] { background: #ef4444; }
+[data-piece="J"] { background: #3b82f6; }
+[data-piece="L"] { background: #f97316; }
+
 #start-button {
   font: inherit;
   padding: 8px 20px;

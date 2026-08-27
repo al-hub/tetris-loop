@@ -10,7 +10,7 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 호출자에게 항목별 표를 돌려주는 것으로 끝난다.
 
-현재 대상은 **SPEC_01 (`SPEC_01_FALLING_PIECE.md`)** 이다.
+현재 대상은 **SPEC_01 revision 2 (`SPEC_01_FALLING_PIECE.md`)** 이다.
 
 ## 판정 규칙
 
@@ -25,7 +25,7 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 ## 단계 0 — 도구 확인
 
-브라우저 도구(페이지 열기 · DOM 조회 · 콘솔 읽기 · 키 입력 · 클릭)가 없으면
+브라우저 도구(페이지 열기 · DOM 조회 · 콘솔 읽기 · JS 실행)가 없으면
 아래를 반환하고 즉시 끝낸다.
 
 ```
@@ -41,6 +41,8 @@ description: 현재 SPEC 의 완료 조건을 실제 브라우저(claude-in-chro
 
 ## 단계 0.5 — 관측 채널
 
+### 정적 서버 경유
+
 **확장이 `file://` 스킴을 거부한다** (`Can't interact with browser-internal or unparseable URLs`).
 WSL 파일시스템을 Windows Chrome 이 `file://` 로 여는 경로가 없으므로 정적 서버를 쓴다.
 
@@ -50,10 +52,44 @@ python3 -m http.server 8123 --bind 127.0.0.1   # 프로젝트 루트에서, 백�
 
 `http://localhost:8123/index.html` · `http://localhost:8123/test.html` 로 관측하고
 **검증이 끝나면 서버를 종료한다.** 이 서버는 관측 수단일 뿐이고 산출물의 의존이 아니다.
-SPEC §2 의 `file://` 조항은 이 채널로 관측할 수 없어 판정 대상이 아니다 (SPEC_01 §11).
+SPEC §2 의 `file://` 조항은 이 채널로 관측할 수 없어 판정 대상이 아니다.
 
-폭 320~480px 은 Chrome 최소 창 폭(outer 약 516) 아래라 창 리사이즈로 도달할 수 없다.
-필요하면 같은 origin 의 iframe 폭을 지정해 관측한다. (SPEC_01 에는 폭 조건이 없다.)
+### 입력은 합성 디스패치로 넣는다
+
+SPEC_01 §6 이 정한 필수 수단이다. **`computer` 의 `key`·`left_click` 을 필수 조건에 쓰지 않는다.**
+브라우저 창이 최소화·가려짐이면 도구가 "Clicked" 를 보고하면서 이벤트가 사라진다.
+
+```js
+// 키
+const e = new KeyboardEvent('keydown', {key: 'ArrowLeft', cancelable: true, bubbles: true});
+window.dispatchEvent(e);            // e.defaultPrevented 로 6-13 판정
+// 클릭
+document.querySelector('[data-role="start"]').click();
+```
+
+### 도달성 프로브 (6-6)
+
+합성 클릭이 못 잡는 오버레이·클리핑·히트영역 문제를 여기서 잡는다.
+
+```js
+(() => {
+  const b = document.querySelector('[data-role="start"]');
+  const r = b.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const hit = document.elementFromPoint(cx, cy);
+  const cs = getComputedStyle(b);
+  return { topmostIsButton: hit === b || b.contains(hit), hitTag: hit && hit.tagName,
+           inViewport: r.width > 0 && r.height > 0 && cx >= 0 && cy >= 0 &&
+                       cx <= innerWidth && cy <= innerHeight,
+           pointerEvents: cs.pointerEvents, visibility: cs.visibility, disabled: b.disabled };
+})()
+```
+
+### 타이머 억제를 전제로 둔다
+
+숨은 탭에서 브라우저가 `setInterval` 을 1000ms 로 늦춘다 (실측 953·999·1000ms).
+그래서 낙하 간격의 **절대값을 재지 않는다.** 상수(6-9c) · 한 tick 당 한 칸(6-9) ·
+평균 간격 하한 630ms(6-9b) 로 나눠 본다. 억제는 간격을 늘리기만 하므로 하한은 안전하다.
 
 ## 단계 1 — 정적 검사 (파일시스템)
 
@@ -76,81 +112,106 @@ SPEC §2 의 `file://` 조항은 이 채널로 관측할 수 없어 판정 대�
 
 ### 2b. 로드 직후 (`index.html`, 입력 없음)
 
-이 두 항목은 **아무 입력도 넣기 전에** 관측한다. 클릭·키 입력 후에는 다시 로드해야 한다.
+**아무 입력도 넣기 전에** 관측한다. 클릭·키 입력 후에는 다시 로드해야 한다.
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-3 | 콘솔 오류 없음 | 콘솔 트래킹을 먼저 켜고 페이지를 다시 로드한다. 로드 후 5초, `시작` 클릭 후 5초까지 error 레벨 0건. warning 은 세지 않는다 |
-| 6-4 | 초기 정지 상태 | `[data-role="status"]`=`READY`, `[data-piece]` 셀 0개, `score`=`0`, `lines`=`0`, `[data-role="cell"]` 200개, `[data-role="controls"]` 텍스트가 아래와 **문자 단위로** 일치, `TetrisApp.getActiveDropTimerCount()`=`0`<br>`← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지` |
+| 6-3 | 콘솔 오류 없음 | 콘솔 트래킹을 `clear: true` 로 비우고 페이지를 다시 로드한다. 로드 후 5초, `시작` 후 5초까지 **페이지가 만든** error 0건. warning 은 세지 않는다. 확장이 주입하는 `A listener indicated an asynchronous response…` 예외는 세지 않는다 — 출처가 `:0:0` 이고 `test.html` 에서도 같은 문구가 나오며 산출물 grep 에 `chrome.*`·`sendMessage`·`async` 가 0건임을 근거로 적는다 |
+| 6-4 | 초기 정지 상태 | `[data-role="status"]`=`READY`, `[data-piece]` 셀 0개, `score`=`0`, `lines`=`0`, `[data-role="cell"]` 200개, `[data-role="controls"]` 텍스트가 아래와 **문자 단위로** 일치, `getActiveDropTimerCount()`=`0`, `getDropStats().count`=`0`<br>`← → ↓ 이동 · ↑ 회전 · Space 하드 드롭 · P 일시정지` |
 
-### 2c. 생성과 자동 낙하
+### 2c. 생성
 
-`시작` 버튼은 **실제 클릭**으로 누른다 (`computer` 의 `left_click`).
 점유 좌표는 `[data-piece]` 셀의 부모 행 인덱스와 행 안 인덱스로 읽는다.
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-6 | 시작 전이 | 클릭 후 `status`=`PLAYING`, `[data-piece]` 셀 정확히 4개, 네 값이 모두 같음, `getActiveDropTimerCount()`=`1` |
+| 6-6 | 도달성 + 시작 전이 | 위 도달성 프로브 통과, 그 뒤 `버튼.click()` → `status`=`PLAYING`, `[data-piece]` 셀 정확히 4개, 네 값이 모두 같음, `getActiveDropTimerCount()`=`1` |
 | 6-7 | 첫 블록 종류 | 로드 후 첫 `시작` 에서 `data-piece` 값이 `I` |
-| 6-8 | 생성 좌표 | 그 블록의 점유 열 집합이 `{3,4,5,6}`, 점유 행 집합이 `{1}` |
-| 6-9 | 자동 낙하 | `시작` 직후 최소 행을 기록하고 2450ms 대기 → 최소 행 증가량이 `3` 또는 `4` |
+| 6-8 | 생성 좌표 | 점유 열 집합 `{3,4,5,6}`, 점유 행 집합 `{1}` |
 
-### 2d. 키 입력
+### 2d. 낙하
 
-방향키는 **실제 키 입력**으로 넣는다 (`computer` 의 `key`).
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-9 | 한 tick 당 한 칸 | `시작` 후 `TetrisApp.tick()` 3회 → 최소 행 정확히 +3, `getDropStats().count` 정확히 +3 |
+| 6-9b | 타이머가 실제로 돈다 | **페이지를 새로 로드한 직후** `시작` → 페이지 안에서 `sleep(2000)` 으로 기준점을 잡고(첫 tick 이 지나가야 `lastAt` 이 현재 게임 것이 된다) → `sleep(2450)` → `count` 증가량 ≥2, `(lastAt 증가분)/(count 증가분)` ≥630ms. 증가량이 `0` 이면 `BLOCKED` |
+
+**주의 두 개.** (1) 5분 넘게 숨어 있던 탭은 강한 억제로 낙하 타이머가 2450ms 에 0회까지 떨어진다.
+6-9b·6-18 은 반드시 새 로드 직후에 잰다. (2) 기준점 `lastAt` 이 **이전 게임** 것이면 평균이
+오염된다(재시작은 `count` 를 0으로 되돌리지 않는다). 반드시 현재 게임의 tick 이 한 번 지난 뒤 잡는다.
+그리고 페이지 안 대기는 긴 `sleep` 한 번으로 한다 — 숨은 탭에서 `setTimeout` 도 1000ms 로 조여서
+짧은 폴링 루프는 CDP 45초 타임아웃을 낸다.
+| 6-9c | 상수 일치 | `getDropStats().intervalMs === TetrisGame.DROP_INTERVAL_MS === 700` |
+
+### 2e. 키 입력 (합성 디스패치)
+
 자동 낙하가 동시에 진행되므로 좌우 이동은 **열만**, 아래 이동은 **행만** 비교한다.
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-10 | 좌우 이동 | `←` 한 번에 점유 열이 전부 1 감소, `→` 한 번에 1 증가 |
-| 6-11 | 아래 이동 | `↓` 한 번에 점유 행이 전부 1 증가 (같은 700ms 구간 안에서 관측) |
-| 6-12 | 회전 | 첫 블록(`I`)에 `↑` 한 번 → 점유 셀 4개, 점유 **열 집합 `{5}`**, 점유 행이 연속된 4행 |
-| 6-13 | 기본 동작 차단 | `PLAYING` 중 `new KeyboardEvent('keydown',{key,cancelable:true,bubbles:true})` 를 `window` 에 디스패치해 `ArrowLeft`·`ArrowRight`·`ArrowUp`·`ArrowDown` 네 개 모두 `defaultPrevented === true` |
-| 6-14 | 좌우 경계 | `←` 20회 후 점유 열 최소값이 `0` 이고 음수 없음. 다시 로드·시작 후 `→` 20회 후 최대값이 `9` 이하 |
+| 6-10 | 좌우 이동 | `ArrowLeft` 1회 → 점유 열 전부 −1, `ArrowRight` 1회 → +1 |
+| 6-11 | 아래 이동 | `ArrowDown` 1회 → 점유 행 전부 +1 |
+| 6-12 | 회전 | 첫 블록(`I`)에 `ArrowUp` 1회 → 점유 셀 4개, 점유 **열 집합 `{5}`**, 점유 행 연속 4행 |
+| 6-13 | 기본 동작 차단 | 네 방향키의 `keydown` 이 모두 `defaultPrevented === true`, `p` 는 `false` |
+| 6-14 | 좌우 경계 | `ArrowLeft` 20회 → 최소 열 `0`, 음수 없음. 다시 로드·시작 후 `ArrowRight` 20회 → 최대 열 `9` 이하 |
 
-### 2e. LANDED
-
-| # | 조건 | 관측 방법 |
-|---|------|-----------|
-| 6-15 | 착지 | `↓` 25회 → `status`=`LANDED`, `[data-piece]` 셀 4개 유지, `getActiveDropTimerCount()`=`0` |
-| 6-16 | 입력 무시 | `LANDED` 에서 점유 좌표와 패널 세 값을 스냅샷 → `← → ↓ ↑` 입력 → 스냅샷이 완전히 같음 |
-| 6-22 | 정지 유지 | `LANDED` 에서 2450ms 대기 → `[data-piece]` 셀 4개, 좌표 집합 불변 |
-
-### 2f. 재시작과 버튼
+### 2f. LANDED
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-17 | 재시작 | `LANDED` 에서 `시작` 클릭 → `status`=`PLAYING`, 셀 4개, 점유 행 최소값 `0` 또는 `1`, `data-piece` 값이 `['I','O','T','S','Z','J','L']` 순환의 다음 종류, `getActiveDropTimerCount()`=`1` |
-| 6-18 | 타이머 중복 없음 | `LANDED` → `시작` 을 두 번 반복 → `getActiveDropTimerCount()`=`1`, 그 상태에서 2450ms 대기 시 최소 행 증가량이 `3` 또는 `4` (겹치면 더 커진다) |
-| 6-19 | PLAYING 중 클릭 무시 | `PLAYING` 중 `시작` 클릭 → `data-piece` 값이 클릭 직전과 같고 점유 행 최소값이 클릭 직전보다 작아지지 않음 |
+| 6-15 | 착지 | `ArrowDown` 25회 → `status`=`LANDED`, `[data-piece]` 셀 4개, `getActiveDropTimerCount()`=`0` |
+| 6-16 | 입력 무시 | 좌표·패널·`getDropStats().count` 스냅샷 → 네 방향키 → 전부 동일 |
+| 6-22 | 정지 유지 | `LANDED` 에서 2450ms 대기 → 셀 4개, 좌표 불변, `count` 증가량 `0` |
+
+### 2g. 재시작과 버튼
+
+| # | 조건 | 관측 방법 |
+|---|------|-----------|
+| 6-17 | 재시작 | `LANDED` 에서 `버튼.click()` → `status`=`PLAYING`, 셀 4개, 점유 행 최소값 `0` 또는 `1`, `data-piece` 가 `['I','O','T','S','Z','J','L']` 순환의 다음 종류, 타이머 `1` |
+| 6-18 | 타이머 중복 없음 | `LANDED` → `시작` 두 번 반복 → 타이머 `1`, 2450ms 대기 시 평균 간격 ≥630ms |
+| 6-19 | PLAYING 중 클릭 무시 | `PLAYING` 중 `버튼.click()` → `data-piece` 값 동일, 점유 행 최소값이 작아지지 않음 |
 | 6-20 | 버튼 텍스트 | `READY`·`PLAYING`·`LANDED` 세 상태에서 `[data-role="start"]` 텍스트가 `시작` |
 
-### 2g. 색
+### 2h. 색
 
 | # | 조건 | 관측 방법 |
 |---|------|-----------|
-| 6-21 | 일곱 색 구분 | 콘솔에서 종류별로 `TetrisApp.render({...TetrisGame.createInitialState(), status:'PLAYING', piece: TetrisGame.createPiece(t)})` 를 실행하고 `[data-piece]` 셀의 `getComputedStyle(...).backgroundColor` 를 읽는다. 일곱 값이 SPEC_01 §3.1 표와 일치하고 서로 다르며 빈 셀 색과도 다름 |
+| 6-21 | 일곱 색 구분 | 종류별로 `TetrisApp.render({...TetrisGame.createInitialState(), status:'PLAYING', piece: TetrisGame.createPiece(t)})` 실행 후 `[data-piece]` 셀의 `getComputedStyle(...).backgroundColor` 를 읽는다. 일곱 값이 SPEC_01 §3.1 표와 일치하고 서로 다르며 빈 셀 색과도 다름 |
 
-이 항목은 상태를 오염시키므로 **맨 마지막에** 하거나, 한 뒤 페이지를 다시 로드한다.
+이 항목은 앱 상태와 화면이 어긋나게 만든다. **맨 마지막에** 하거나 한 뒤 페이지를 다시 로드한다.
+
+### 2i. 선택 관측 (SPEC_01 §6.1) — 판정에 넣지 않는다
+
+`document.visibilityState === 'visible'` 이고 카나리아가 통과할 때만 시도한다.
+카나리아: 뷰포트 전체를 덮는 투명 프로브를 깔고 `computer` 로 실제 키 1회·클릭 1회를 넣어
+`isTrusted === true` 로 도달했는지 본다. 실패하면 조용히 넘어간다 — **`FAIL` 로 적지 않는다.**
+
+`computer` 좌표는 스크린샷 픽셀 공간이다. CSS 좌표를 넣을 때 환산한다.
+
+```js
+sx = screenshotWidth / window.innerWidth;   // 세션마다 다시 구한다
+tool_x = Math.round(cssClientX * sx);
+```
 
 ## 반환 형식
 
 ```markdown
-## 검증 결과 — SPEC_01
+## 검증 결과 — SPEC_01 rev2
 
 | # | 항목 | 결과 | 근거 |
 |---|------|------|------|
 | 6-1 | 산출물 집합 일치 | PASS | ls 결과 정확히 6개, 추가 산출물 없음 |
-| 6-9 | 자동 낙하 | FAIL | 2450ms 후 최소 행 증가량 7 (타이머 2개로 보임) |
+| 6-9b | 타이머가 실제로 돈다 | FAIL | count +4, 평균 간격 490ms (타이머 2개로 보임) |
 ...
 
-- 종합: PASS 20 / FAIL 1 / BLOCKED 1
+- 종합: PASS 22 / FAIL 1 / BLOCKED 1
 - 판정: FAILED
 - 실패 시그니처: `main.js:duplicate-drop-timer`
+- 선택 관측: 건너뜀 (visibilityState=hidden)
 ```
 
 종합 판정 규칙: `BLOCKED` 이 하나라도 있으면 `BLOCKED`. 아니면 `FAIL` 이 하나라도 있으면 `FAILED`.
-전부 `PASS` 여야 `PASSED`.
+전부 `PASS` 여야 `PASSED`. §6.1 선택 관측은 종합 판정에 넣지 않는다.
 
 실패 시그니처는 재발 감지에 쓰이므로 **정규화된 짧은 문자열**이어야 한다
 (`<파일>:<증상>` 형태, 타임스탬프나 가변 수치 금지).

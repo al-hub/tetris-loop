@@ -19,6 +19,17 @@
 - `ScheduleWakeup({stop: true})` 를 호출하고 이 tick 을 끝낸다.
 - **재시도하지 않는다.** 이 세 상태는 전부 사람의 판단을 기다리는 상태다.
 
+### 예외 — 브라우저 게이트가 이미 풀린 경우
+
+`status` 가 `BLOCKED` 이고 `human_input_needed` 가 **브라우저 도구 없음**을 사유로 적고 있는데
+지금 세션에 브라우저 도구가 있다면, 사람이 이미 `claude --chrome` 으로 다시 연 것이다.
+이때만 예외로:
+
+- `status` → `PENDING`, `human_input_needed` → `null` 로 되돌려 저장하고
+- 3번으로 진행한다
+
+다른 사유의 `BLOCKED`(SPEC 에 없는 결정 대기 등)은 스스로 풀지 않는다. 그건 사람이 답할 몫이다.
+
 ## 3. 진행 중이면 한 걸음
 
 `status` 가 `PENDING` · `IN_PROGRESS` · `VERIFYING` · `FAILED` 면

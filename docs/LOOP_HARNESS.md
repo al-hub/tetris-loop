@@ -108,7 +108,7 @@ PENDING ──▶ IN_PROGRESS ──▶ VERIFYING ──▶ FAILED ──┘  (i
 |------|------|
 | `iteration >= max_iterations` | `HALTED` |
 | `failure_signatures` 에 같은 값 두 번 | `HALTED` |
-| 브라우저 도구 없음 | `BLOCKED` (구현 시작 안 함, `iteration` 소비 안 함) |
+| 브라우저 도구 없음 | `BLOCKED` (구현 시작 안 함, `iteration` 소비 안 함). `--chrome` 세션으로 다시 열면 `PENDING` 으로 자동 복구 |
 | SPEC 에 없는 결정 필요 | `BLOCKED` + `[사람 확인 필요]` |
 
 **실패 시그니처**는 재발 감지의 열쇠라서 정규화된 짧은 문자열이어야 한다.

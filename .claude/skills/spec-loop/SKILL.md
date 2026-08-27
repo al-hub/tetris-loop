@@ -28,6 +28,10 @@ description: SPEC 문서 하나를 구현하고 브라우저로 검증한 뒤 �
 - `iteration` 을 올리지 않는다 — 반복을 소비한 게 아니라 시작조차 못 한 것이다
 - 상태 저장(단계 6) 후 즉시 종료. **코드를 한 줄도 쓰지 않는다.**
 
+**있으면** — `status` 가 `BLOCKED` 이고 `human_input_needed` 가 브라우저 도구 없음을 사유로
+적고 있으면 사람이 이미 세션을 다시 연 것이다. `status` → `PENDING`,
+`human_input_needed` → `null` 로 되돌리고 단계 2 로 진행한다.
+
 ## 단계 2 — 정지 조건 선검사
 
 `.loop/state/progress.json` 을 읽고 아래 중 하나라도 해당하면 `HALTED` 로 종료한다
@@ -35,7 +39,8 @@ description: SPEC 문서 하나를 구현하고 브라우저로 검증한 뒤 �
 
 - `iteration >= max_iterations` — 세 번 실행하고도 완료 못 함
 - `failure_signatures` 에 같은 값이 두 번 이상 — 같은 실패 반복
-- `status` 가 이미 `PASSED` · `BLOCKED` · `HALTED`
+- `status` 가 이미 `PASSED` · `HALTED`
+- `status` 가 `BLOCKED` 이고 사유가 브라우저 도구 없음이 **아님** (사람의 답을 기다리는 중)
 
 `HALTED` 로 갈 때 `human_input_needed` 에 어느 조건이 발동했는지 한 문장으로 적는다.
 
